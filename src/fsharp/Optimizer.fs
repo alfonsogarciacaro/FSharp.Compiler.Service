@@ -509,8 +509,7 @@ let GetInfoForLocalValue cenv env (v:Val) m =
     (* Abstract slots do not have values *)
     if v.IsDispatchSlot then UnknownValInfo 
     else
-        let mutable res = Unchecked.defaultof<_> 
-        let ok = cenv.localInternalVals.TryGetValue(v.Stamp, &res)
+        let ok, res = cenv.localInternalVals.TryGetValue(v.Stamp)
         if ok then res else
         match env.localExternalVals.TryFind v.Stamp with 
         | Some vval -> vval
@@ -3216,6 +3215,7 @@ let OptimizeImplFile(settings,ccu,tcGlobals,tcVal, importMap,optEnv,isIncrementa
 // Pickle to stable format for cross-module optimization data
 //------------------------------------------------------------------------- 
 
+#if INCLUDE_METADATA_WRITER
 
 let rec p_ExprValueInfo x st =
     match x with 
@@ -3242,6 +3242,7 @@ and p_ModuleInfo x st =
 and p_LazyModuleInfo x st = 
     p_lazy p_ModuleInfo x st
 let p_CcuOptimizationInfo x st = p_LazyModuleInfo x st
+#endif
 
 let rec u_ExprInfo st =
     let rec loop st =

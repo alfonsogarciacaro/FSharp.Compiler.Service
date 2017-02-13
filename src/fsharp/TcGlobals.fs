@@ -9,6 +9,9 @@
 module internal Microsoft.FSharp.Compiler.TcGlobals
 
 open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Collections
+#endif
 open Microsoft.FSharp.Compiler 
 open Microsoft.FSharp.Compiler.AbstractIL 
 open Microsoft.FSharp.Compiler.AbstractIL.IL 

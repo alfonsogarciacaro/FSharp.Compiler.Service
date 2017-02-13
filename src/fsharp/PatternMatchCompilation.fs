@@ -4,6 +4,9 @@ module internal Microsoft.FSharp.Compiler.PatternMatchCompilation
 
 open System.Collections.Generic
 open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Collections
+#endif
 open Microsoft.FSharp.Compiler 
 open Microsoft.FSharp.Compiler.AbstractIL 
 open Microsoft.FSharp.Compiler.AbstractIL.Internal 
@@ -919,7 +922,7 @@ let CompilePatternBasic
              
              if not (isNil topgtvs) then error(InternalError("Unexpected generalized type variables when compiling an active pattern",m))
              let rty = apinfo.ResultType g m resTys
-             let v,vexp = mkCompGenLocal m ("activePatternResult"^string (newUnique())) rty
+             let v,vexp = mkCompGenLocal m ("activePatternResult"+string (newUnique())) rty
              if topv.IsMemberOrModuleBinding then 
                  AdjustValToTopVal v topv.ActualParent ValReprInfo.emptyValData
              let argexp = GetSubExprOfInput subexpr
@@ -1230,7 +1233,7 @@ let CompilePatternBasic
     
     // Report unused targets 
     if warnOnUnused then 
-        let used = HashSet<_>(accTargetsOfDecisionTree dtree [],HashIdentity.Structural)
+        let used = HashSet<_>(accTargetsOfDecisionTree dtree [] |> List.toSeq, HashIdentity.Structural)
 
         clausesL |> List.iteri (fun i c ->  
             if not (used.Contains i) then warning (RuleNeverMatched c.Range)) 

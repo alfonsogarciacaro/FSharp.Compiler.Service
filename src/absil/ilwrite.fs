@@ -457,8 +457,7 @@ type MetadataTable<'T> =
 #if DEBUG
         tbl.lookups <- tbl.lookups + 1 
 #endif
-        let mutable res = Unchecked.defaultof<_>
-        let ok = tbl.dict.TryGetValue(x,&res)
+        let ok, res = tbl.dict.TryGetValue(x)
         if ok then res
         else tbl.AddSharedEntry x
 
@@ -760,8 +759,8 @@ let rec GetTypeRefAsTypeRefRow cenv (tref:ILTypeRef) =
     SharedRow [| ResolutionScope (rs1,rs2); nelem; nselem |]
 
 and GetTypeRefAsTypeRefIdx cenv tref = 
-    let mutable res = 0
-    if cenv.trefCache.TryGetValue(tref,&res) then res else 
+    let ok, res = cenv.trefCache.TryGetValue(tref)
+    if ok then res else 
     let res = FindOrAddSharedRow cenv TableNames.TypeRef (GetTypeRefAsTypeRefRow cenv tref)
     cenv.trefCache.[tref] <- res
     res

@@ -6,6 +6,9 @@ module internal Microsoft.FSharp.Compiler.PostTypeCheckSemanticChecks
 
 open System.Collections.Generic
 open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Collections
+#endif
 
 open Microsoft.FSharp.Compiler
 open Microsoft.FSharp.Compiler.AbstractIL
@@ -1349,10 +1352,10 @@ let CheckModuleBinding cenv env (TBind(v,e,_) as bind) =
             // Properties get 'get_X', only if there are no args
             // Properties get 'get_X'
             match v.ValReprInfo with 
-            | Some arity when arity.NumCurriedArgs = 0 && arity.NumTypars = 0 -> check false ("get_"^v.DisplayName)
+            | Some arity when arity.NumCurriedArgs = 0 && arity.NumTypars = 0 -> check false ("get_"+v.DisplayName)
             | _ -> ()
             match v.ValReprInfo with 
-            | Some arity when v.IsMutable && arity.NumCurriedArgs = 0 && arity.NumTypars = 0 -> check false ("set_"^v.DisplayName)
+            | Some arity when v.IsMutable && arity.NumCurriedArgs = 0 && arity.NumTypars = 0 -> check false ("set_"+v.DisplayName)
             | _ -> ()
             match TryChopPropertyName v.DisplayName with 
             | Some res -> check true res 

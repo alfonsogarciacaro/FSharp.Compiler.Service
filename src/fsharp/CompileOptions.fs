@@ -815,7 +815,9 @@ let testFlag tcConfigB =
                                             | "FunctionSizes"    -> tcConfigB.optSettings <- { tcConfigB.optSettings with reportFunctionSizes = true }
                                             | "TotalSizes"       -> tcConfigB.optSettings <- { tcConfigB.optSettings with reportTotalSizes = true }
                                             | "HasEffect"        -> tcConfigB.optSettings <- { tcConfigB.optSettings with reportHasEffect = true }
+#if !FABLE_COMPILER
                                             | "NoErrorText"      -> FSComp.SR.SwallowResourceText <- true
+#endif
                                             | "EmitFeeFeeAs100001" -> tcConfigB.testFlagEmitFeeFeeAs100001 <- true
                                             | "DumpDebugInfo"    -> tcConfigB.dumpDebugInfo <- true
                                             | "ShowLoadedAssemblies" -> tcConfigB.showLoadedAssemblies <- true

@@ -3,10 +3,10 @@
 /// Anything to do with special names of identifiers and other lexical rules 
 module (*internal*) Microsoft.FSharp.Compiler.Range
 
+open Internal.Utilities
 open System.IO
 open System.Collections.Generic
 open Microsoft.FSharp.Core.Printf
-open Internal.Utilities
 open Microsoft.FSharp.Compiler.AbstractIL 
 open Microsoft.FSharp.Compiler.AbstractIL.Internal 
 open Microsoft.FSharp.Compiler.AbstractIL.Internal.Library
@@ -27,8 +27,12 @@ let posColumnMask  = mask32 0 columnBitCount
 let lineColumnMask = mask32 columnBitCount lineBitCount
 let inline (lsr)  (x:int) (y:int)  = int32 (uint32 x >>> y)
 
+#if FABLE_COMPILER
+[<Struct>]
+#else
 [<Struct; CustomEquality; NoComparison>]
 [<System.Diagnostics.DebuggerDisplay("{Line},{Column}")>]
+#endif
 type pos(code:int32) =
     new (l,c) = 
         let l = max 0 l 
@@ -43,11 +47,17 @@ type pos(code:int32) =
     member r.Encoding = code
     static member EncodingSize = posBitCount
     static member Decode (code:int32) : pos = pos code
+#if FABLE_COMPILER
+    override p.ToString() = sprintf "(%d,%d)" p.Line p.Column
+#else
     override p.Equals(obj) = match obj with :? pos as p2 -> code = p2.Encoding | _ -> false
     override p.GetHashCode() = hash code
+#endif
 
 [<Literal>]
 let fileIndexBitCount = 14
+
+#if !FABLE_COMPILER
 [<Literal>]
 let startLineBitCount = lineBitCount
 [<Literal>]
@@ -103,18 +113,22 @@ let _ = assert (endColumnMask =   mask64 endColumnShift   endColumnBitCount)
 let _ = assert (isSyntheticMask = mask64 isSyntheticShift isSyntheticBitCount)
 #endif
 
+#endif //!FABLE_COMPILER
+
 // This is just a standard unique-index table
 type FileIndexTable() = 
     let indexToFileTable = new ResizeArray<_>(11)
     let fileToIndexTable = new Dictionary<string,int>(11)
     member t.FileToIndex f = 
-        let mutable res = 0 
-        let ok = fileToIndexTable.TryGetValue(f,&res) 
+#if FABLE_COMPILER
+        (
+#else
+        let ok, res = fileToIndexTable.TryGetValue f in
         if ok then res 
         else
             lock fileToIndexTable (fun () -> 
-                let mutable res = 0 in
-                let ok = fileToIndexTable.TryGetValue(f,&res) in
+#endif
+                let ok, res = fileToIndexTable.TryGetValue(f) in
                 if ok then res 
                 else
                     let n = indexToFileTable.Count in
@@ -139,6 +153,30 @@ let fileOfFileIndex n = fileIndexTable.IndexToFile(n)
 
 let mkPos l c = pos (l,c)
 
+#if FABLE_COMPILER
+[<Literal>]
+let fileIndexMask =   0b0011111111111111
+[<Literal>]
+let isSyntheticMask = 0b0100000000000000
+
+[<Struct>]
+type range(code:int, b:pos, e:pos) =
+    static member Zero = range(0, pos(0), pos(0))
+    member r.StartLine   = b.Line
+    member r.StartColumn = b.Column
+    member r.EndLine     = e.Line
+    member r.EndColumn   = e.Column
+    member r.IsSynthetic = (code &&& isSyntheticMask) <> 0
+    member r.Start = b
+    member r.End = e
+    member r.FileIndex = (code &&& fileIndexMask)
+    member m.StartRange = range (m.FileIndex, m.Start, m.Start)
+    member m.EndRange = range (m.FileIndex, m.End, m.End)
+    member r.FileName = fileOfFileIndex r.FileIndex
+    member r.MakeSynthetic() = range(code ||| isSyntheticMask, b, e)
+    override r.ToString() = sprintf "%s (%d,%d--%d,%d) IsSynthetic=%b" r.FileName r.StartLine r.StartColumn r.EndLine r.EndColumn r.IsSynthetic
+    member r.ToShortString() = sprintf "(%d,%d--%d,%d)" r.StartLine r.StartColumn r.EndLine r.EndColumn
+#else
 [<Struct; CustomEquality; NoComparison>]
 [<System.Diagnostics.DebuggerDisplay("({StartLine},{StartColumn}-{EndLine},{EndColumn}) {FileName} IsSynthetic={IsSynthetic}")>]
 type range(code:int64) =
@@ -169,7 +207,7 @@ type range(code:int64) =
     member r.Code = code
     override r.Equals(obj) = match obj with :? range as r2 -> code = r2.Code | _ -> false
     override r.GetHashCode() = hash code
-
+#endif
 let mkRange f b e = range (fileIndexOfFile f, b, e)
 let mkFileIndexRange fi b e = range (fi, b, e)
 
@@ -180,10 +218,15 @@ let posOrder   = Order.orderOn (fun (p:pos) -> p.Line, p.Column) (Pair.order (In
 let rangeOrder = Order.orderOn (fun (r:range) -> r.FileName, r.Start) (Pair.order (String.order,posOrder))
 
 let outputPos   (os:TextWriter) (m:pos)   = fprintf os "(%d,%d)" m.Line m.Column
-let outputRange (os:TextWriter) (m:range) = fprintf os "%s%a-%a" m.FileName outputPos m.Start outputPos m.End
 let boutputPos   os (m:pos)   = bprintf os "(%d,%d)" m.Line m.Column
+#if FABLE_COMPILER
+let stringPos (m:pos) = sprintf "(%d,%d)" m.Line m.Column
+let outputRange (os:TextWriter) (m:range) = fprintf os "%s%s-%s" m.FileName (stringPos m.Start) (stringPos m.End)
+let boutputRange os (m:range) = bprintf os "%s%s-%s" m.FileName (stringPos m.Start) (stringPos m.End)
+#else
+let outputRange (os:TextWriter) (m:range) = fprintf os "%s%a-%a" m.FileName outputPos m.Start outputPos m.End
 let boutputRange os (m:range) = bprintf os "%s%a-%a" m.FileName boutputPos m.Start boutputPos m.End
-    
+#endif
 let posGt (p1:pos) (p2:pos) = (p1.Line > p2.Line || (p1.Line = p2.Line && p1.Column > p2.Column))
 let posEq (p1:pos) (p2:pos) = (p1.Line = p2.Line &&  p1.Column = p2.Column)
 let posGeq p1 p2 = posEq p1 p2 || posGt p1 p2
@@ -198,7 +241,11 @@ let unionRanges (m1:range) (m2:range) =
     let e = 
       if (m1.EndLine > m2.EndLine || (m1.EndLine = m2.EndLine && m1.EndColumn > m2.EndColumn)) then m1
       else m2
+#if FABLE_COMPILER
+    range (m1.FileIndex, b.Start, e.End)
+#else
     range (m1.FileIndex, b.StartLine, b.StartColumn, e.EndLine, e.EndColumn)
+#endif
 
 let rangeContainsRange (m1:range) (m2:range) =
     m1.FileIndex = m2.FileIndex &&
@@ -225,7 +272,11 @@ let trimRangeToLine (r:range) =
       r
     else
       let endL,endC = startL+1,0   (* Trim to the start of the next line (we do not know the end of the current line) *)
+#if FABLE_COMPILER
+      range (r.FileIndex, pos(startL, startC), pos(endL, endC))
+#else
       range (r.FileIndex, startL, startC, endL, endC)
+#endif
 
 (* For Diagnostics *)
 let stringOfPos   (pos:pos) = sprintf "(%d,%d)" pos.Line pos.Column
@@ -245,7 +296,11 @@ type Range01 = Pos01 * Pos01
 module Line =
     // Visual Studio uses line counts starting at 0, F# uses them starting at 1 
     let fromZ (line:Line0) = int line+1
+#if FABLE_COMPILER
+    let toZ (line:int) : Line0 = int (line - 1)
+#else
     let toZ (line:int) : Line0 = LanguagePrimitives.Int32WithMeasure(line - 1)
+#endif
 
 module Pos =
     let fromZ (line:Line0) idx = mkPos (Line.fromZ line) idx 

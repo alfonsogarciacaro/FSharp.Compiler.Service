@@ -79,6 +79,9 @@ type Stack<'a>(n)  =
     let mutable contents = Array.zeroCreate<'a>(n)
     let mutable count = 0
 
+#if FABLE_COMPILER
+    new (n, _) = Stack<'a>(n)
+#endif
     member buf.Ensure newSize = 
         let oldSize = contents.Length
         if newSize > oldSize then 
@@ -87,7 +90,7 @@ type Stack<'a>(n)  =
             Array.blit old 0 contents 0 count
     
     member buf.Count = count
-    member buf.Pop() = count <- count - 1
+    member buf.Pop() = count <- count - 1; contents.[count]
     member buf.Peep() = contents.[count - 1]
     member buf.Top(n) = [ for x in contents.[max 0 (count-n)..count - 1] -> x ] |> List.rev
     member buf.Push(x) =
@@ -96,10 +99,11 @@ type Stack<'a>(n)  =
         count <- count + 1
         
     member buf.IsEmpty = (count = 0)
+#if DEBUG
     member buf.PrintStack() = 
         for i = 0 to (count - 1) do 
             System.Console.Write("{0}{1}",(contents.[i]),if i=count-1 then ":" else "-") 
-          
+#endif          
 
 #if DEBUG
 module Flags = 
@@ -156,8 +160,7 @@ module internal Implementation =
             assert (keyToFind < 0x10000)
             let cacheKey = (rowNumber <<< 16) ||| keyToFind
 #if OLD_CACHE
-            let mutable res = 0 
-            let ok = cache.TryGetValue(cacheKey, &res) 
+            let ok, res = cache.TryGetValue(cacheKey) 
             if ok then res 
             else
 #else
@@ -298,8 +301,8 @@ module internal Implementation =
                 if Flags.debug then 
                     System.Console.WriteLine("popping stack during error recovery");
 #endif
-                valueStack.Pop();
-                stateStack.Pop();
+                valueStack.Pop() |> ignore;
+                stateStack.Pop() |> ignore;
                 popStackUntilErrorShifted(tokenOpt)
 
         while not finished do                                                                                    
@@ -368,8 +371,8 @@ module internal Implementation =
                     for i = 0 to n - 1 do                                                                             
                         if valueStack.IsEmpty then failwith "empty symbol stack";
                         let topVal = valueStack.Peep()
-                        valueStack.Pop();
-                        stateStack.Pop();
+                        valueStack.Pop() |> ignore;
+                        stateStack.Pop() |> ignore;
                         ruleValues.[(n-i)-1] <- topVal.value;  
                         ruleStartPoss.[(n-i)-1] <- topVal.startPos;  
                         ruleEndPoss.[(n-i)-1] <- topVal.endPos;  

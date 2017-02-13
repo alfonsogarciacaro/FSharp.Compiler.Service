@@ -2,12 +2,12 @@
 
 module internal Microsoft.FSharp.Compiler.Lexhelp
 
-open System
-open System.Text
 open Internal.Utilities
 open Internal.Utilities.Collections
 open Internal.Utilities.Text
 open Internal.Utilities.Text.Lexing
+open System
+open System.Text
 open Microsoft.FSharp.Compiler
 open Microsoft.FSharp.Compiler.AbstractIL
 open Microsoft.FSharp.Compiler.AbstractIL.Internal
@@ -31,6 +31,9 @@ let stdinMockFilename = "stdin"
 [<Sealed>]
 type LightSyntaxStatus(initial:bool,warn:bool) = 
     let mutable status = None
+#if FABLE_COMPILER
+    new (initial,warn, _) = LightSyntaxStatus(initial,warn)
+#endif
     member x.Status 
        with get() = match status with None -> initial | Some v -> v
        and  set v = status <- Some(v)
@@ -41,14 +44,18 @@ type LightSyntaxStatus(initial:bool,warn:bool) =
 /// Manage lexer resources (string interning)
 [<Sealed>]
 type LexResourceManager() =
-    let strings = new System.Collections.Generic.Dictionary<string,Parser.token>(100)
-    member x.InternIdentifierToken(s) = 
-        let mutable res = Unchecked.defaultof<_> 
-        let ok = strings.TryGetValue(s,&res)  
-        if ok then res  else 
-        let res = IDENT s
-        (strings.[s] <- res; res)
-              
+    let strings = new System.Collections.Generic.Dictionary<string, token>(100)
+#if FABLE_COMPILER
+    new (_) = LexResourceManager()
+#endif
+    member x.InternIdentifierToken(s) =
+        let ok, res = strings.TryGetValue(s)
+        if ok then res
+        else
+            let res = token.IDENT s
+            strings.[s] <- res
+            res
+
 /// Lexer parameters 
 type lexargs =  
     { defines: string list
@@ -323,6 +330,10 @@ module Keywords =
             | _ -> v
         | _ ->
             match s with 
+#if FABLE_COMPILER
+            | "__SOURCE_DIRECTORY__" -> KEYWORD_STRING "" //TODO: implement
+            | "__SOURCE_FILE__" -> KEYWORD_STRING "" //TODO: implement
+#else
             | "__SOURCE_DIRECTORY__" ->
                 let filename = fileOfFileIndex lexbuf.StartPos.FileIndex
                 let dirname = 
@@ -337,6 +348,7 @@ module Keywords =
                 KEYWORD_STRING dirname
             | "__SOURCE_FILE__" -> 
                 KEYWORD_STRING (System.IO.Path.GetFileName((fileOfFileIndex lexbuf.StartPos.FileIndex))) 
+#endif
             | "__LINE__" -> 
                 KEYWORD_STRING (string lexbuf.StartPos.Line)
             | _ -> 

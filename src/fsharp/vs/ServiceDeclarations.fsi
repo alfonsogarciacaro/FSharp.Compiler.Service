@@ -7,6 +7,9 @@
 
 namespace Microsoft.FSharp.Compiler.SourceCodeServices
 
+#if FABLE_COMPILER
+open Internal.Utilities
+#endif
 open Microsoft.FSharp.Compiler 
 open Microsoft.FSharp.Compiler.Range
 open Microsoft.FSharp.Compiler.TcGlobals 

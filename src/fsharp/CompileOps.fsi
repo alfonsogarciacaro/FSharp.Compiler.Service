@@ -3,10 +3,10 @@
 /// Coordinating compiler operations - configuration, loading initial context, reporting errors etc.
 module internal Microsoft.FSharp.Compiler.CompileOps
 
+open Internal.Utilities
 open System
 open System.Text
 open System.Collections.Generic
-open Internal.Utilities
 open Microsoft.FSharp.Compiler.AbstractIL 
 open Microsoft.FSharp.Compiler.AbstractIL.IL
 open Microsoft.FSharp.Compiler.AbstractIL.Internal 
@@ -582,7 +582,7 @@ type TcAssemblyResolutions =
     
 
 
-/// Repreesnts a table of imported assemblies with their resolutions.
+/// Represents a table of imported assemblies with their resolutions.
 [<Sealed>] 
 type TcImports =
     interface System.IDisposable

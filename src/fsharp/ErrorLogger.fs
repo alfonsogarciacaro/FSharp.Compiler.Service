@@ -4,6 +4,9 @@ module (*internal*) Microsoft.FSharp.Compiler.ErrorLogger
 
 
 open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Core.Operators
+#endif
 open Microsoft.FSharp.Compiler 
 open Microsoft.FSharp.Compiler.AbstractIL.Diagnostics
 open Microsoft.FSharp.Compiler.Lib
@@ -110,21 +113,36 @@ let inline protectAssemblyExplorationNoReraise dflt1 dflt2 f  =
         | UnresolvedPathReferenceNoRange _ -> dflt1
         | _ -> dflt2
 
+#if FABLE_COMPILER
+let (|IsException|_|) exnTypeName (exn: exn) =
+    if exn.GetType().FullName = exnTypeName then
+        Some (sprintf "%s (%s)" exn.Message (exn.GetType().Name))
+    else None
+#endif
+
 // Attach a range if this is a range dual exception.
 let rec AttachRange m (exn:exn) = 
     if m = range0 then exn
     else 
         match exn with
         // Strip TargetInvocationException wrappers
-        | :? System.Reflection.TargetInvocationException -> AttachRange m exn.InnerException
         | UnresolvedReferenceNoRange(a) -> UnresolvedReferenceError(a,m)
         | UnresolvedPathReferenceNoRange(a,p) -> UnresolvedPathReference(a,p,m)
-        | Failure(msg) -> InternalError(msg^" (Failure)",m)
-        | :? System.ArgumentException as exn -> InternalError(exn.Message + " (ArgumentException)",m)
+#if FABLE_COMPILER
+        | IsException "System.Reflection.TargetInvocationException" msg -> InternalError(msg, m)
+        | IsException "System.Exception" msg -> InternalError(msg, m)
+        | IsException "System.ArgumentException" msg -> InternalError(msg, m)
+#else
+        | :? System.Reflection.TargetInvocationException -> AttachRange m exn.InnerException
+        | Failure(msg) -> InternalError(msg + " (Failure)",m)
+        | :? System.ArgumentException -> InternalError(exn.Message + " (ArgumentException)",m)
+#endif
         | notARangeDual -> notARangeDual
 
 //----------------------------------------------------------------------------
 // Error logger interface
+
+#if !FABLE_COMPILER
 
 type Exiter = 
     abstract Exit : int -> 'T 
@@ -138,6 +156,7 @@ let QuitProcessExiter =
             with _ ->  
                 ()             
             failwithf "%s" <| FSComp.SR.elSysEnvExitDidntExit() } 
+#endif
 
 /// Closed enumeration of build phases.
 type BuildPhase =
@@ -305,6 +324,7 @@ type internal CompileThreadStatic =
 module ErrorLoggerExtensions = 
     open System.Reflection
 
+#if !FABLE_COMPILER
     // Instruct the exception not to reset itself when thrown again.
     // Design Note: This enables the compiler to prompt the user to send mail to fsbugs@microsoft.com, 
     // by catching the exception, prompting and then propagating the exception with reraise. 
@@ -336,6 +356,7 @@ module ErrorLoggerExtensions =
             raise exn
         | _ -> ()
 #endif
+#endif
 
     type ErrorLogger with  
 
@@ -366,14 +387,18 @@ module ErrorLoggerExtensions =
             (* Don't send ThreadAbortException down the error channel *)
 #if FX_REDUCED_EXCEPTIONS
 #else
+#if !FABLE_COMPILER
             | :? System.Threading.ThreadAbortException | WrappedError((:? System.Threading.ThreadAbortException),_) ->  ()
+#endif
 #endif
             | ReportedError _  | WrappedError(ReportedError _,_)  -> ()
             | StopProcessing | WrappedError(StopProcessing,_) -> raise exn
             | _ ->
                 try  
                     x.ErrorR (AttachRange m exn) // may raise exceptions, e.g. an fsi error sink raises StopProcessing.
+#if !FABLE_COMPILER
                     ReraiseIfWatsonable(exn)
+#endif
                 with
                   | ReportedError _ | WrappedError(ReportedError _,_)  -> ()
         member x.StopProcessingRecovery (exn:exn) (m:range) =
@@ -566,7 +591,7 @@ let NormalizeErrorString (text : string) =
             | c ->
                 // handle remaining chars: control - replace with space, others - keep unchanged
                 let c = if Char.IsControl(c) then ' ' else c
-                buf.Append(c) |> ignore
+                buf.Append(string c) |> ignore
                 1
         i <- i + delta
     buf.ToString()

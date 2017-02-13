@@ -5,6 +5,9 @@
 
 namespace Internal.Utilities.Text.Lexing
 
+#if FABLE_COMPILER
+    open Internal.Utilities
+#endif
     open Microsoft.FSharp.Core
     open Microsoft.FSharp.Collections
     open System.Collections.Generic
@@ -165,7 +168,7 @@ namespace Internal.Utilities.Text.Lexing
 
         static member FromChars (arr:char[]) = LexBuffer.FromArray arr 
 
-    module GenericImplFragments = 
+    module internal GenericImplFragments = 
         let startInterpret(lexBuffer:LexBuffer<char>)= 
             lexBuffer.BufferScanStart <- lexBuffer.BufferScanStart + lexBuffer.LexemeLength;
             lexBuffer.BufferMaxScanLength <- lexBuffer.BufferMaxScanLength - lexBuffer.LexemeLength;

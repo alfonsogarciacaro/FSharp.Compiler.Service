@@ -551,8 +551,7 @@ let emitDataSwitch ilg (cg: ICodeGen<'Mark>) (avoidHelpers, cuspec, cases) =
         for (i,case) in cases do dict.[i] <- case
         let failLab = cg.GenerateDelayMark ()
         let emitCase i _ = 
-            let mutable res = Unchecked.defaultof<_>
-            let ok = dict.TryGetValue(i, &res)
+            let ok, res = dict.TryGetValue(i)
             if ok then res else cg.CodeLabel failLab
 
         let dests = Array.mapi emitCase cuspec.AlternativesArray

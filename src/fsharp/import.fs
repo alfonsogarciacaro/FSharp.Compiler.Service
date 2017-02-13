@@ -6,6 +6,9 @@ module internal Microsoft.FSharp.Compiler.Import
 open System.Reflection
 open System.Collections.Generic
 open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Core.Operators
+#endif
 
 open Microsoft.FSharp.Compiler.AbstractIL.IL
 open Microsoft.FSharp.Compiler.AbstractIL.Internal.Library
@@ -55,6 +58,9 @@ type AssemblyLoader =
 [<Sealed>]
 type ImportMap(g:TcGlobals,assemblyLoader:AssemblyLoader) =
     let typeRefToTyconRefCache = new System.Collections.Generic.Dictionary<ILTypeRef,TyconRef>()
+#if FABLE_COMPILER
+    new (g,assemblyLoader,_) = ImportMap(g,assemblyLoader)
+#endif
     member this.g = g
     member this.assemblyLoader = assemblyLoader
     member this.ILTypeRefToTyconRefCache = typeRefToTyconRefCache

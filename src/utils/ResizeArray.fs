@@ -69,17 +69,29 @@ module internal ResizeArray =
         res
 
     let mapi f (arr: ResizeArray<_>) =
+#if !FABLE_COMPILER
         let f = FSharpFunc<_,_,_>.Adapt(f)
+#endif
         let len = length arr
         let res = new ResizeArray<_>(len)
         for i = 0 to len - 1 do
+#if FABLE_COMPILER
+            res.Add(f i arr.[i])
+#else
             res.Add(f.Invoke(i, arr.[i]))
+#endif
         res
         
     let iteri f (arr: ResizeArray<_>) =
+#if !FABLE_COMPILER
         let f = FSharpFunc<_,_,_>.Adapt(f)
+#endif
         for i = 0 to arr.Count - 1 do
+#if FABLE_COMPILER
+            f i arr.[i]
+#else
             f.Invoke(i, arr.[i])
+#endif
 
     let exists (f: 'T -> bool) (arr: ResizeArray<'T>) =
         let len = length arr 
@@ -116,19 +128,31 @@ module internal ResizeArray =
         loop 0
 
     let iter2 f (arr1: ResizeArray<'T>) (arr2: ResizeArray<'b>) = 
+#if !FABLE_COMPILER
         let f = FSharpFunc<_,_,_>.Adapt(f)
+#endif
         let len1 = length arr1
         if len1 <> length arr2 then invalidArg "arr2" "the arrays have different lengths"
         for i = 0 to len1 - 1 do 
+#if FABLE_COMPILER
+            f arr1.[i] arr2.[i]
+#else
             f.Invoke(arr1.[i], arr2.[i])
+#endif
 
     let map2 f (arr1: ResizeArray<'T>) (arr2: ResizeArray<'b>) = 
+#if !FABLE_COMPILER
         let f = FSharpFunc<_,_,_>.Adapt(f)
+#endif
         let len1 = length arr1
         if len1 <> length arr2 then invalidArg "arr2" "the arrays have different lengths"
         let res = new ResizeArray<_>(len1)
         for i = 0 to len1 - 1 do
+#if FABLE_COMPILER
+            res.Add(f arr1.[i] arr2.[i])
+#else
             res.Add(f.Invoke(arr1.[i], arr2.[i]))
+#endif
         res
 
     let choose f (arr: ResizeArray<_>) = 
@@ -220,21 +244,33 @@ module internal ResizeArray =
         else foldBackSub f arr 0 (arrn - 2) arr.[arrn - 1]
 
     let fold2 f (acc: 'T) (arr1: ResizeArray<'T1>) (arr2: ResizeArray<'T2>) =
+#if !FABLE_COMPILER
         let f = FSharpFunc<_,_,_,_>.Adapt(f)
+#endif
         let mutable res = acc 
         let len = length arr1
         if len <> length arr2 then invalidArg "arr2" "the arrays have different lengths"
         for i = 0 to len - 1 do
+#if FABLE_COMPILER
+            res <- (f res arr1.[i] arr2.[i])
+#else
             res <- f.Invoke(res,arr1.[i],arr2.[i])
+#endif
         res
 
     let foldBack2 f (arr1: ResizeArray<'T1>) (arr2: ResizeArray<'T2>) (acc: 'b) =
+#if !FABLE_COMPILER
         let f = FSharpFunc<_,_,_,_>.Adapt(f)
+#endif
         let mutable res = acc 
         let len = length arr1
         if len <> length arr2 then invalidArg "arr2" "the arrays have different lengths"
         for i = len - 1 downto 0 do 
+#if FABLE_COMPILER
+            res <- (f arr1.[i] arr2.[i] res)
+#else
             res <- f.Invoke(arr1.[i],arr2.[i],res)
+#endif
         res
 
     let forall2 f (arr1: ResizeArray<_>) (arr2: ResizeArray<_>) = 
@@ -246,33 +282,57 @@ module internal ResizeArray =
     let isEmpty (arr: ResizeArray<_>) = length (arr: ResizeArray<_>) = 0
     
     let iteri2 f (arr1: ResizeArray<'T>) (arr2: ResizeArray<'b>) =
+#if !FABLE_COMPILER
         let f = FSharpFunc<_,_,_,_>.Adapt(f)
+#endif
         let len1 = length arr1
         if len1 <> length arr2 then invalidArg "arr2" "the arrays have different lengths"
         for i = 0 to len1 - 1 do 
+#if FABLE_COMPILER
+            f i arr1.[i] arr2.[i]
+#else
             f.Invoke(i,arr1.[i], arr2.[i])
+#endif
 
     let mapi2 (f: int -> 'T -> 'b -> 'c) (arr1: ResizeArray<'T>) (arr2: ResizeArray<'b>) = 
+#if !FABLE_COMPILER
         let f = FSharpFunc<_,_,_,_>.Adapt(f)
+#endif
         let len1 = length arr1
         if len1 <> length arr2 then invalidArg "arr2" "the arrays have different lengths"
+#if FABLE_COMPILER
+        init len1 (fun i -> (f i arr1.[i] arr2.[i]))
+#else
         init len1 (fun i -> f.Invoke(i, arr1.[i], arr2.[i]))
+#endif
 
     let scanBackSub f (arr: ResizeArray<'T>) start fin acc = 
+#if !FABLE_COMPILER
         let f = FSharpFunc<_,_,_>.Adapt(f)
+#endif
         let mutable state = acc
         let res = create (2+fin-start) acc
         for i = fin downto start do
+#if FABLE_COMPILER
+            state <- (f arr.[i] state)
+#else
             state <- f.Invoke(arr.[i], state)
+#endif
             res.[i - start] <- state
         res
 
     let scanSub f  acc (arr : ResizeArray<'T>) start fin = 
+#if !FABLE_COMPILER
         let f = FSharpFunc<_,_,_>.Adapt(f)
+#endif
         let mutable state = acc
         let res = create (fin-start+2) acc
         for i = start to fin do
+#if FABLE_COMPILER
+            state <- (f state arr.[i])
+#else
             state <- f.Invoke(state, arr.[i])
+#endif
             res.[i - start+1] <- state
         res
 

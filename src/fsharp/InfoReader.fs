@@ -5,6 +5,10 @@
 module internal Microsoft.FSharp.Compiler.InfoReader
 
 open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Collections
+open Microsoft.FSharp.Core.Operators
+#endif
 
 open Microsoft.FSharp.Compiler.AbstractIL 
 open Microsoft.FSharp.Compiler.AbstractIL.Diagnostics

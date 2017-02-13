@@ -6,6 +6,9 @@ module internal Microsoft.FSharp.Compiler.SignatureConformance
 
 open Internal.Utilities
 open System.Text
+#if FABLE_COMPILER
+open Microsoft.FSharp.Core
+#endif
 
 open Microsoft.FSharp.Compiler 
 open Microsoft.FSharp.Compiler.AbstractIL 

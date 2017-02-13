@@ -5,6 +5,9 @@ module internal Microsoft.FSharp.Compiler.TastPickle
 open System.Collections.Generic
 open System.Text
 open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Collections
+#endif
 open Microsoft.FSharp.Compiler 
 open Microsoft.FSharp.Compiler.AbstractIL 
 open Microsoft.FSharp.Compiler.AbstractIL.IL
@@ -72,8 +75,7 @@ type Table<'T> =
         tbl.rows.Add(x);
         n
     member tbl.FindOrAdd x = 
-        let mutable res = Unchecked.defaultof<_>
-        let ok = tbl.tbl.TryGetValue(x,&res)
+        let ok, res = tbl.tbl.TryGetValue(x)
         if ok then res else tbl.Add x
 
 
@@ -2208,7 +2210,13 @@ and u_const st =
     | 14 -> u_string st        |> Const.String
     | 15 -> Const.Unit
     | 16 -> Const.Zero
-    | 17 -> u_array u_int32 st |> (fun bits -> Const.Decimal (new System.Decimal(bits)))
+    | 17 -> u_array u_int32 st |> (fun bits ->
+        Const.Decimal (
+#if FABLE_COMPILER
+            System.Decimal.FromBits(bits)))
+#else
+            new System.Decimal(bits)))
+#endif
     | _ -> ufailwith st "u_const" 
 
 

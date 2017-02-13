@@ -272,14 +272,27 @@ Target "CodeGen.NetCore" (fun _ ->
     let fsLex fsl out = runInDir (toolDir + "fslex.exe") "%s --unicode %s -o %s" fsl lexArgs out
     let fsYacc fsy out m o = runInDir (toolDir + "fsyacc.exe") "%s %s %s %s %s -o %s" fsy lexArgs yaccArgs m o out
 
+#if FABLE_COMPILER
+    // until a more recent version of fssrgen is released, building from source
+    runInDir "dotnet" "run -c Release -p /Projects/FsSrGen/src/dotnet-fssrgen ../FSComp.txt ./FSComp.fs"
+    runInDir "dotnet" "run -c Release -p /Projects/FsSrGen/src/dotnet-fssrgen ../fsi/FSIstrings.txt ./FSIstrings.fs"
+#else
     runInDir "dotnet" "fssrgen ../FSComp.txt ./FSComp.fs ./FSComp.resx"
     runInDir "dotnet" "fssrgen ../fsi/FSIstrings.txt ./FSIstrings.fs ./FSIstrings.resx"
+#endif
     fsLex "../lex.fsl" "lex.fs"
     fsLex "../pplex.fsl" "pplex.fs"
     fsLex "../../absil/illex.fsl" "illex.fs"
     fsYacc "../../absil/ilpars.fsy" "ilpars.fs" module1 open1
     fsYacc "../pars.fsy" "pars.fs" module2 open2
     fsYacc "../pppars.fsy" "pppars.fs" module3 open3
+
+#if FABLE_COMPILER
+    // comments the #line directive as it is not supported by Fable
+    ["lex.fs"; "pplex.fs"; "illex.fs"; "ilpars.fs"; "pars.fs"; "pppars.fs"]
+    |> Seq.map (fun fileName -> IO.Path.Combine (workDir, fileName))
+    |> RegexReplaceInFilesWithEncoding @"# (?=\d)" "//# " Text.Encoding.UTF8
+#endif
 )
 
 Target "Build.NetCore" (fun _ ->

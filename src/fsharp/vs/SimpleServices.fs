@@ -17,7 +17,7 @@ namespace Microsoft.FSharp.Compiler.SimpleSourceCodeServices
     open Microsoft.FSharp.Compiler.AbstractIL.IL
 
     [<AutoOpen>]
-    module private Utils =
+    module Utils =
 
         let buildFormatComment (xmlCommentRetriever: string * string -> string) cmt (sb: StringBuilder) =
             match cmt with

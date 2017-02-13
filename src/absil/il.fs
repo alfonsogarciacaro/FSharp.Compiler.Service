@@ -8,6 +8,10 @@ module (*internal*) Microsoft.FSharp.Compiler.AbstractIL.IL
 
 
 open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Collections
+open Microsoft.FSharp.Core
+#endif
 open Microsoft.FSharp.Compiler.AbstractIL
 open Microsoft.FSharp.Compiler.AbstractIL.Diagnostics
 open Microsoft.FSharp.Compiler.AbstractIL.Internal
@@ -377,6 +381,7 @@ type ILAssemblyRef(data)  =
               assemRefVersion=version;
               assemRefLocale=locale; }
               
+#if !FABLE_COMPILER
     static member FromAssemblyName (aname:System.Reflection.AssemblyName) =
         let locale = None
         //match aname.CultureInfo with 
@@ -399,13 +404,13 @@ type ILAssemblyRef(data)  =
         let retargetable = aname.Flags = System.Reflection.AssemblyNameFlags.Retargetable
 
         ILAssemblyRef.Create(aname.Name,None,publicKey,retargetable,version,locale)
- 
+ #endif
 
 
     member aref.QualifiedName = 
         let b = new System.Text.StringBuilder(100)
         let add (s:string) = (b.Append(s) |> ignore)
-        let addC (s:char) = (b.Append(s) |> ignore)
+        let addC (s:char) = (b.Append(string s) |> ignore)
         add(aref.Name);
         match aref.Version with 
         | None -> ()
@@ -472,7 +477,7 @@ type ILScopeRef =
     member scoref.QualifiedName = 
         match scoref with 
         | ILScopeRef.Local -> ""
-        | ILScopeRef.Module mref -> "module "^mref.Name
+        | ILScopeRef.Module mref -> "module "+mref.Name
         | ILScopeRef.Assembly aref when aref.Name = "mscorlib" -> ""
         | ILScopeRef.Assembly aref -> aref.QualifiedName
 
@@ -3222,7 +3227,7 @@ type ILTypeSigParser(tstring : string) =
                 // fetch the arity
                 let arity = 
                     while (int(here()) >= (int('0'))) && (int(here()) <= ((int('9')))) && (int(peek()) >= (int('0'))) && (int(peek()) <= ((int('9')))) do step()
-                    System.Int32.Parse(take())
+                    System.Convert.ToInt32(take())
                 // skip the '['
                 drop()
                 // get the specializations
@@ -3260,7 +3265,11 @@ type ILTypeSigParser(tstring : string) =
                       yield grabScopeComponent() // culture
                       yield grabScopeComponent() // public key token
                     ] |> String.concat ","
+#if FABLE_COMPILER
+                ILScopeRef.Assembly(mkSimpleAssRef scope)
+#else
                 ILScopeRef.Assembly(ILAssemblyRef.FromAssemblyName(System.Reflection.AssemblyName(scope)))        
+#endif
             else
                 ILScopeRef.Local
 
@@ -3405,7 +3414,11 @@ let decodeILAttribData (ilg: ILGlobals) (ca: ILAttribute) =
                     pieces.[0], None
             let scoref = 
                 match rest with 
+#if FABLE_COMPILER
+                | Some aname -> ILScopeRef.Assembly(mkSimpleAssRef aname)
+#else
                 | Some aname -> ILScopeRef.Assembly(ILAssemblyRef.FromAssemblyName(System.Reflection.AssemblyName(aname)))        
+#endif
                 | None -> ilg.primaryAssemblyScopeRef
 
             let tref = mkILTyRef (scoref,unqualified_tname)
@@ -3667,12 +3680,17 @@ let parseILVersion (vstr : string) =
         versionComponents.[3] <- defaultRevision.ToString() ;
         vstr <- System.String.Join(".",versionComponents) ;
         
+#if FABLE_COMPILER
+    let parts = vstr.Split([|'.'|])
+    let versions = Array.append (Array.map uint16 parts) [|0us;0us;0us;0us|]
+    (versions.[0], versions.[1], versions.[2], versions.[3])
+#else
     let version = System.Version(vstr)
     let zero32 n = if n < 0 then 0us else uint16(n)
     // since the minor revision will be -1 if none is specified, we need to truncate to 0 to not break existing code
     let minorRevision = if version.Revision = -1 then 0us else uint16(version.MinorRevision)   
     (zero32 version.Major, zero32 version.Minor, zero32 version.Build, minorRevision);;
-
+#endif
 
 let compareILVersions (a1,a2,a3,a4) ((b1,b2,b3,b4) : ILVersionInfo) = 
     let c = compare a1 b1

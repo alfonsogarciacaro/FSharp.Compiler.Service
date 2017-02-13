@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "engines": {
+    "fable": "^0.7.42"
+  },
+  "dependencies": {
+    "fable-core": "^0.7.26"
+  }
+}

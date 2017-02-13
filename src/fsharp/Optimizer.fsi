@@ -49,8 +49,10 @@ val internal OptimizeImplFile : OptimizationSettings *  CcuThunk * TcGlobals * C
 val internal moduleInfoL : TcGlobals -> LazyModuleInfo -> Layout.layout
 #endif
 
+#if INCLUDE_METADATA_WRITER
 /// Saving and re-reading optimization information 
 val p_CcuOptimizationInfo : CcuOptimizationInfo -> TastPickle.WriterState -> unit 
+#endif
 
 /// Rewrite the module info using the export remapping 
 val RemapOptimizationInfo : TcGlobals -> Tastops.Remap -> (CcuOptimizationInfo -> CcuOptimizationInfo)

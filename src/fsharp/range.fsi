@@ -2,9 +2,9 @@
 
 module (*internal*) Microsoft.FSharp.Compiler.Range
 
+open Internal.Utilities
 open System.Text
 open System.Collections.Generic
-open Internal.Utilities
 open Microsoft.FSharp.Compiler.AbstractIL 
 open Microsoft.FSharp.Compiler.AbstractIL.Internal 
 open Microsoft.FSharp.Compiler  
@@ -15,7 +15,11 @@ type FileIndex = int32
 val fileIndexOfFile : string -> FileIndex
 val fileOfFileIndex : FileIndex -> string
 
+#if FABLE_COMPILER
+[<Struct>]
+#else
 [<Struct; CustomEquality; NoComparison>]
+#endif
 type pos =
     member Line : int
     member Column : int
@@ -30,7 +34,11 @@ val mkPos : line:int -> column:int -> pos
 
 val posOrder : IComparer<pos>
 
+#if FABLE_COMPILER
+[<Struct>]
+#else
 [<Struct; CustomEquality; NoComparison>]
+#endif
 type range =
     member StartLine : int
     member StartColumn : int

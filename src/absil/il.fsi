@@ -100,7 +100,9 @@ type ILVersionInfo = uint16 * uint16 * uint16 * uint16
 [<Sealed>]
 type ILAssemblyRef =
     static member Create : name: string * hash: byte[] option * publicKey: PublicKey option * retargetable: bool * version: ILVersionInfo option * locale: string option -> ILAssemblyRef
+#if !FABLE_COMPILER
     static member FromAssemblyName : System.Reflection.AssemblyName -> ILAssemblyRef
+#endif
     member Name: string;
     /// The fully qualified name of the assembly reference, e.g. mscorlib, Version=1.0.3705 etc.
     member QualifiedName: string; 

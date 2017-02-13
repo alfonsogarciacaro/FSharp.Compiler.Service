@@ -5,6 +5,9 @@ module internal Microsoft.FSharp.Compiler.Lib
 open System.IO
 open System.Collections.Generic
 open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Core
+#endif
 open Microsoft.FSharp.Compiler.AbstractIL
 open Microsoft.FSharp.Compiler.AbstractIL.Internal 
 open Microsoft.FSharp.Compiler.AbstractIL.Internal.Library
@@ -16,6 +19,7 @@ let verbose = false
 let progress = ref false 
 let tracking = ref false // intended to be a general hook to control diagnostic output when tracking down bugs
 
+#if !FABLE_COMPILER
 let condition _s = 
     try (System.Environment.GetEnvironmentVariable(_s) <> null) with _ -> false
 
@@ -31,6 +35,7 @@ type SaveAndRestoreConsoleEncoding () =
             try 
                 System.Console.SetOut(savedOut)
             with _ -> ()
+#endif
 
 //-------------------------------------------------------------------------
 // Library: bits
@@ -54,6 +59,9 @@ module Bits =
 
 module Filename = 
     let fullpath cwd nm = 
+#if FABLE_COMPILER
+        cwd + "/" + nm //TODO: proper implementation
+#else
         let p = if FileSystem.IsPathRootedShim(nm) then nm else Path.Combine(cwd,nm)
         try FileSystem.GetFullPathShim(p) with 
         | :? System.ArgumentException 
@@ -61,6 +69,7 @@ module Filename =
         | :? System.NotSupportedException 
         | :? System.IO.PathTooLongException 
         | :? System.Security.SecurityException -> p
+#endif
 
     let hasSuffixCaseInsensitive suffix filename = (* case-insensitive *)
       Filename.checkSuffix (String.lowercase filename) (String.lowercase suffix)
@@ -304,6 +313,7 @@ let bufs f =
     f buf 
     buf.ToString()
 
+#if !FABLE_COMPILER
 let buff (os: TextWriter) f x = 
     let buf = System.Text.StringBuilder 100 
     f buf x 
@@ -316,6 +326,7 @@ let writeViaBufferWithEnvironmentNewLines (os: TextWriter) f x =
     let text = buf.ToString()
     let text = text.Replace("\n",System.Environment.NewLine)
     os.Write text
+#endif
         
 //---------------------------------------------------------------------------
 // Imperative Graphs 
@@ -424,6 +435,7 @@ type Dumper(x:obj) =
      member self.Dump = sprintf "%A" x 
 #endif
 
+#if !FABLE_COMPILER
 //---------------------------------------------------------------------------
 // AsyncUtil
 //---------------------------------------------------------------------------
@@ -562,3 +574,5 @@ module UnmanagedProcessExecutionOptions =
                             GetLastError().ToString("X").PadLeft(8,'0') + "."))
 #endif
 
+
+#endif //!FABLE_COMPILER
