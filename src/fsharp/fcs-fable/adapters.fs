@@ -32,10 +32,10 @@ module System =
         static member Ordinal = StringComparer(System.StringComparison.Ordinal)
         static member OrdinalIgnoreCase = StringComparer(System.StringComparison.OrdinalIgnoreCase)
         interface IEqualityComparer<string> with
-            member x.Equals(a,b) = (compare a b) = 0
+            member x.Equals(a,b) = System.String.Compare(a, b, comp) = 0
             member x.GetHashCode a = hash a
         interface IComparer<string> with
-            member x.Compare(a,b) = compare a b
+            member x.Compare(a,b) = System.String.Compare(a, b, comp)
 
     module Char =
         open System.Globalization
