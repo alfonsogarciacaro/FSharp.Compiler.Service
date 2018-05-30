@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../FSharp.Compiler.Service/FSharp.Compiler.Service.fsproj" />
+    <PackageReference Include="FSharp.Core" Version="4.*" PrivateAssets="All" />
+    <PackageReference Include="Dotnet.ProjInfo.Matthid" Version="*" />
+    <PackageReference Include="Fable.Core" Version="1.*" />
+    <PackageReference Include="Fable.Import.Browser" Version="*" />
+  </ItemGroup>
+</Project>

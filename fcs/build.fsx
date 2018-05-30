@@ -124,6 +124,13 @@ Target "PublishNuGet" (fun _ ->
 )
 
 // --------------------------------------------------------------------------------------
+// Export Metadata binaries
+
+Target "Export.Metadata" (fun _ ->
+    runDotnet (__SOURCE_DIRECTORY__ + "/fcs-export") "run -c Release"
+)
+
+// --------------------------------------------------------------------------------------
 // Run all targets by default. Invoke 'build <Target>' to override
 
 Target "Start" DoNothing
@@ -163,5 +170,9 @@ Target "TestAndNuGet" DoNothing
 
 "GenerateDocs"
   ==> "Release"
+
+"Clean"
+  ==> "Restore"
+  ==> "Export.Metadata"
 
 RunTargetOrDefault "Build"
