@@ -13,7 +13,7 @@ open Fake.ReleaseNotesHelper
 #if MONO
 // prevent incorrect output encoding (e.g. https://github.com/fsharp/FAKE/issues/1196)
 System.Console.OutputEncoding <- System.Text.Encoding.UTF8
-CleanDir (__SOURCE_DIRECTORY__ + "/../tests/TestResults") 
+CleanDir (__SOURCE_DIRECTORY__ + "/../tests/TestResults")
 File.WriteAllText(__SOURCE_DIRECTORY__ + "/../tests/TestResults/notestsyet.txt","No tests yet")
 let isMono = true
 #else
@@ -21,7 +21,26 @@ let isMono = false
 #endif
 
 
-let dotnetExePath = DotNetCli.InstallDotNetSDK "2.1.401"
+let dotnetExePath =
+    let addToPath newPath =
+        let path = environVarOrDefault "PATH" ""
+        let separator = if isWindows then ";" else ":"
+        setEnvironVar "PATH" (newPath + separator + path)
+    let findLineAndGetGroupValue regexPattern (groupIndex: int) filePath =
+        let reg = System.Text.RegularExpressions.Regex(regexPattern)
+        File.ReadLines(filePath)
+        |> Seq.pick (fun line ->
+            let m = reg.Match(line)
+            if m.Success
+            then Some m.Groups.[groupIndex].Value
+            else None)
+    let dotnetcliVersion =
+        Path.Combine(__SOURCE_DIRECTORY__, "../global.json")
+        |> findLineAndGetGroupValue "\"version\": \"(.*?)\"" 1
+    let dotnetExePath = DotNetCli.InstallDotNetSDK dotnetcliVersion
+    if Path.IsPathRooted(dotnetExePath) then
+        Path.GetDirectoryName(dotnetExePath) |> addToPath
+    dotnetExePath
 
 let runDotnet workingDir args =
     let result =
@@ -127,7 +146,11 @@ Target "PublishNuGet" (fun _ ->
 // Export Metadata binaries
 
 Target "Export.Metadata" (fun _ ->
-    runDotnet (__SOURCE_DIRECTORY__ + "/fcs-export") "run -c Release"
+    let projPath =
+        match environVarOrNone "FCS_EXPORT_PROJECT" with
+        | Some x -> x
+        | None -> __SOURCE_DIRECTORY__ + "/fcs-export"
+    runDotnet projPath "run -c Release"
 )
 
 // --------------------------------------------------------------------------------------
@@ -154,7 +177,7 @@ Target "TestAndNuGet" DoNothing
 
 "NuGet"
   ==> "TestAndNuGet"
-  
+
 "Build"
   ==> "NuGet"
   ==> "PublishNuGet"
