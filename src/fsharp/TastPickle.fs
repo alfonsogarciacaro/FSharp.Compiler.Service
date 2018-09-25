@@ -2,9 +2,13 @@
 
 module internal Microsoft.FSharp.Compiler.TastPickle 
 
+open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Collections
+open Microsoft.FSharp.Core.Operators
+#endif
 open System.Collections.Generic
 open System.Text
-open Internal.Utilities
 open Microsoft.FSharp.Compiler 
 open Microsoft.FSharp.Compiler.AbstractIL 
 open Microsoft.FSharp.Compiler.AbstractIL.IL
@@ -71,8 +75,12 @@ type Table<'T> =
         tbl.rows.Add(x)
         n
     member tbl.FindOrAdd x = 
+#if FABLE_COMPILER
+        let ok, res = tbl.tbl.TryGetValue(x)
+#else
         let mutable res = Unchecked.defaultof<_>
-        let ok = tbl.tbl.TryGetValue(x,&res)
+        let ok = tbl.tbl.TryGetValue(x, &res)
+#endif
         if ok then res else tbl.Add x
 
 

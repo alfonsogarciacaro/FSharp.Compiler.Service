@@ -10,13 +10,13 @@ open Microsoft.FSharp.Compiler.AbstractIL.IL
 open Microsoft.FSharp.Compiler.Tast
 open Microsoft.FSharp.Compiler.TcGlobals
 
-/// Indicates how the generated IL code is ultimately emitted 
+/// Indicates how the generated IL code is ultimately emitted
 type IlxGenBackend =
     | IlWriteBackend
     | IlReflectBackend
 
 [<NoEquality; NoComparison>]
-type internal IlxGenOptions = 
+type internal IlxGenOptions =
     { fragName                               : string
 
       /// Indicates if we are generating filter blocks
@@ -28,7 +28,7 @@ type internal IlxGenOptions =
       /// Indicates if static array data should be emitted using static blobs
       emitConstantArraysUsingStaticDataBlobs : bool
 
-      /// If this is set, then the last module becomes the "main" module 
+      /// If this is set, then the last module becomes the "main" module
       mainMethodInfo                         : Attribs option
 
       /// Indicates if local optimizations are active
@@ -45,7 +45,7 @@ type internal IlxGenOptions =
 
       /// Indicates the code is being generated in FSI.EXE and is executed immediately after code generation
       /// This includes all interactively compiled code, including #load, definitions, and expressions
-      isInteractive                          : bool 
+      isInteractive                          : bool
 
       /// Indicates the code generated is an interactive 'it' expression. We generate a setter to allow clearing of the underlying
       /// storage, even though 'it' is not logically mutable
@@ -55,7 +55,7 @@ type internal IlxGenOptions =
       alwaysCallVirt                         : bool }
 
 /// The results of the ILX compilation of one fragment of an assembly
-type public IlxGenResults = 
+type public IlxGenResults =
     { /// The generated IL/ILX type definitions
       ilTypeDefs             : ILTypeDef list
       /// The generated IL/ILX assembly attributes
@@ -69,19 +69,19 @@ type public IlxGenResults =
       /// The generated IL/ILX resources associated with F# quotations
       quotationResourceInfo : (ILTypeRef list * byte[])  list }
 
-  
+
 /// Used to support the compilation-inversion operations "ClearGeneratedValue" and "LookupGeneratedValue"
 type ExecutionContext =
     { LookupFieldRef  : (ILFieldRef -> FieldInfo)
       LookupMethodRef : (ILMethodRef -> MethodInfo)
       LookupTypeRef   : (ILTypeRef -> Type)
-      LookupType      : (ILType -> Type) } 
+      LookupType      : (ILType -> Type) }
 
 /// An incremental ILX code generator for a single assembly
 type public IlxAssemblyGenerator =
     /// Create an incremental ILX code generator for a single assembly
-    new : Import.ImportMap * TcGlobals * ConstraintSolver.TcValF * CcuThunk -> IlxAssemblyGenerator 
-    
+    new : Import.ImportMap * TcGlobals * ConstraintSolver.TcValF * CcuThunk -> IlxAssemblyGenerator
+
     /// Register a set of referenced assemblies with the ILX code generator
     member AddExternalCcus : CcuThunk list -> unit
 
@@ -92,11 +92,13 @@ type public IlxAssemblyGenerator =
     /// Generate ILX code for an assembly fragment
     member GenerateCode : IlxGenOptions * TypedAssemblyAfterOptimization * Attribs * Attribs -> IlxGenResults
 
+#if !FABLE_COMPILER
     /// Invert the compilation of the given value and clear the storage of the value
     member ClearGeneratedValue : ExecutionContext * Val -> unit
 
     /// Invert the compilation of the given value and return its current dynamic value and its compiled System.Type
     member LookupGeneratedValue : ExecutionContext * Val -> (obj * System.Type) option
+#endif //!FABLE_COMPILER
 
 
 val ReportStatistics : TextWriter -> unit

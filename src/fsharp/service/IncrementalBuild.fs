@@ -17,7 +17,9 @@ open Microsoft.FSharp.Compiler.AbstractIL.IL
 open Microsoft.FSharp.Compiler.AbstractIL.ILBinaryReader
 open Microsoft.FSharp.Compiler.AbstractIL.Internal.Library 
 open Microsoft.FSharp.Compiler.CompileOps
+#if !FABLE_COMPILER
 open Microsoft.FSharp.Compiler.CompileOptions
+#endif
 open Microsoft.FSharp.Compiler.Ast
 open Microsoft.FSharp.Compiler.ErrorLogger
 open Microsoft.FSharp.Compiler.TcGlobals
@@ -26,6 +28,8 @@ open Microsoft.FSharp.Compiler.Tast
 open Microsoft.FSharp.Compiler.Range
 open Microsoft.FSharp.Compiler.SourceCodeServices
 open Internal.Utilities.Collections
+
+#if !FABLE_COMPILER
 
 [<AutoOpen>]
 module internal IncrementalBuild =
@@ -970,6 +974,21 @@ module internal IncrementalBuild =
         member b.GetInitialPartialBuild(inputs:BuildInput list) =
             ToBound(ToBuild outputs, inputs)   
 
+#endif //!FABLE_COMPILER
+
+
+#if FABLE_COMPILER
+// stub
+type IncrementalBuilder() =
+    member x.IncrementUsageCount () =
+        { new System.IDisposable with member __.Dispose() = () }
+    member x.IsAlive = false
+    static member KeepBuilderAlive (builderOpt: IncrementalBuilder option) = 
+        match builderOpt with 
+        | Some builder -> builder.IncrementUsageCount() 
+        | None -> { new System.IDisposable with member __.Dispose() = () }
+
+#else //!FABLE_COMPILER
 
         
 
@@ -1886,3 +1905,4 @@ type IncrementalBuilder(tcGlobals, frameworkTcImports, nonFrameworkAssemblyInput
 
     member __.IsBeingKeptAliveApartFromCacheEntry = (referenceCount >= 2)
 
+#endif //!FABLE_COMPILER

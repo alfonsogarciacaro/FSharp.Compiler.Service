@@ -16,7 +16,9 @@ open Microsoft.FSharp.Compiler.AbstractIL.Internal.Library
 open Microsoft.FSharp.Compiler.AbstractIL.ILBinaryReader
 open Microsoft.FSharp.Compiler 
 open Microsoft.FSharp.Compiler.Ast
+#if !FABLE_COMPILER
 open Microsoft.FSharp.Compiler.Driver
+#endif
 open Microsoft.FSharp.Compiler.ErrorLogger
 open Microsoft.FSharp.Compiler.Range
 open Microsoft.FSharp.Compiler.TcGlobals
@@ -81,9 +83,25 @@ type public SemanticClassificationType =
     | Operator
     | Disposable
 
+#if FABLE_COMPILER
+[<Sealed>]
+type internal TypeCheckInfo =
+    member ScopeResolutions: TcResolutions
+    member ScopeSymbolUses: TcSymbolUses
+    member TcGlobals: TcGlobals
+    member TcImports: TcImports
+    member CcuSigForFile: Tast.ModuleOrNamespaceType
+    member ThisCcu: Tast.CcuThunk
+    member ImplementationFile: TypedImplFile option
+#endif
+
 /// A handle to the results of CheckFileInProject.
 [<Sealed>]
 type public FSharpCheckFileResults =
+
+#if FABLE_COMPILER
+    internal new : filename: string * errors: FSharpErrorInfo[] * scopeOptX: TypeCheckInfo option * dependencyFiles: string[] * builderX: IncrementalBuilder option * reactorOpsX:IReactorOperations * keepAssemblyContents: bool -> FSharpCheckFileResults
+#endif
     /// The errors returned by parsing a source file.
     member Errors : FSharpErrorInfo[]
 
@@ -261,6 +279,9 @@ type public FSharpCheckFileResults =
 [<Sealed>]
 type public FSharpCheckProjectResults =
 
+#if FABLE_COMPILER
+    internal new : projectFileName:string * tcConfigOption: TcConfig option * keepAssemblyContents: bool * errors: FSharpErrorInfo[] * details:(TcGlobals*TcImports*Tast.CcuThunk*Tast.ModuleOrNamespaceType*TcSymbolUses list*TypeChecker.TopAttribs option*CompileOps.IRawFSharpAssemblyData option * ILAssemblyRef * AccessibilityLogic.AccessorDomain * Tast.TypedImplFile list option * string[]) option -> FSharpCheckProjectResults
+#endif
     /// The errors returned by processing the project
     member Errors: FSharpErrorInfo[]
 
@@ -305,6 +326,9 @@ type public FSharpParsingOptions =
       IsExe: bool
     }
     static member Default: FSharpParsingOptions
+#if FABLE_COMPILER
+    static member internal FromTcConfig: tcConfig: TcConfig * sourceFiles: string[] * isInteractive: bool -> FSharpParsingOptions
+#endif
 
 /// <summary>A set of information describing a project or script build configuration.</summary>
 type public FSharpProjectOptions = 
@@ -353,6 +377,14 @@ type public FSharpProjectOptions =
       Stamp: int64 option
     }
          
+#if FABLE_COMPILER
+module internal Parser =
+    type TypeCheckAborted = Yes | No of TypeCheckInfo
+    val internal parseFile: source: string * filename: string * options: FSharpParsingOptions * userOpName: string -> FSharpErrorInfo [] * ParsedInput option * bool
+    val internal CheckOneFile : parseResults:FSharpParseFileResults * source:string * mainInputFileName:string * projectFileName:string * tcConfig:TcConfig * tcGlobals:TcGlobals * tcImports:TcImports * tcState:TcState * loadClosure:LoadClosure option * backgroundDiagnostics:(PhasedDiagnostic * FSharpErrorSeverity)[] * reactorOps:IReactorOperations * checkAlive:(unit -> bool) * textSnapshotInfo:obj option * userOpName: string -> FSharpErrorInfo [] * TypeCheckAborted
+
+#else //!FABLE_COMPILER
+
 /// The result of calling TypeCheckResult including the possibility of abort and background compiler not caught up.
 [<RequireQualifiedAccess>]
 type public FSharpCheckFileAnswer =
@@ -765,3 +797,4 @@ module public PrettyNaming =
     /// All the keywords in the F# language 
     val KeywordNames : string list
 
+#endif //!FABLE_COMPILER

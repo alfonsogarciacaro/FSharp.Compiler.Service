@@ -4,6 +4,10 @@
 /// constraint solving and method overload resolution.
 module internal Microsoft.FSharp.Compiler.SignatureConformance
 
+#if FABLE_COMPILER
+open Internal.Utilities
+open Microsoft.FSharp.Core
+#endif
 open System.Text
 
 open Microsoft.FSharp.Compiler 

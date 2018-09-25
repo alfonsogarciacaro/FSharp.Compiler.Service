@@ -2,14 +2,12 @@
 
 module internal Microsoft.FSharp.Compiler.Lexhelp
 
-open System
-open System.Text
-
 open Internal.Utilities
 open Internal.Utilities.Collections
 open Internal.Utilities.Text
 open Internal.Utilities.Text.Lexing
-
+open System
+open System.Text
 open Microsoft.FSharp.Compiler
 open Microsoft.FSharp.Compiler.AbstractIL
 open Microsoft.FSharp.Compiler.AbstractIL.Internal
@@ -33,6 +31,9 @@ let stdinMockFilename = "stdin"
 [<Sealed>]
 type LightSyntaxStatus(initial:bool,warn:bool) = 
     let mutable status = None
+#if FABLE_COMPILER
+    new (initial,warn, _) = LightSyntaxStatus(initial,warn)
+#endif
     member x.Status 
        with get() = match status with None -> initial | Some v -> v
        and  set v = status <- Some(v)
@@ -44,13 +45,22 @@ type LightSyntaxStatus(initial:bool,warn:bool) =
 [<Sealed>]
 type LexResourceManager() =
     let strings = new System.Collections.Generic.Dictionary<string, Parser.token>(1024)
+#if FABLE_COMPILER
+    new (_) = LexResourceManager()
+#endif
     member x.InternIdentifierToken(s) = 
+#if FABLE_COMPILER
+        let ok, res = strings.TryGetValue(s)
+#else
         let mutable res = Unchecked.defaultof<_> 
         let ok = strings.TryGetValue(s, &res)  
-        if ok then res  else 
-        let res = IDENT s
-        (strings.[s] <- res; res)
-              
+#endif
+        if ok then res 
+        else 
+            let res = IDENT s
+            strings.[s] <- res
+            res
+
 /// Lexer parameters 
 type lexargs =  
     { defines: string list

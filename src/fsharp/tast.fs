@@ -26,6 +26,9 @@ open Microsoft.FSharp.Compiler.PrettyNaming
 open Microsoft.FSharp.Compiler.QuotationPickler
 open Microsoft.FSharp.Core.Printf
 open Microsoft.FSharp.Compiler.Rational
+#if FABLE_COMPILER
+open Microsoft.FSharp.Core.Operators
+#endif
 
 #if !NO_EXTENSIONTYPING
 open Microsoft.FSharp.Compiler.ExtensionTyping
@@ -36,13 +39,21 @@ open Microsoft.FSharp.Core.CompilerServices
 type Unique = int64
 
 //++GLOBAL MUTABLE STATE (concurrency-safe)
+#if FABLE_COMPILER
+let newUnique = let i = ref 0L in fun () -> i := !i + 1L; !i
+#else
 let newUnique = let i = ref 0L in fun () -> System.Threading.Interlocked.Increment(i)
+#endif
 
 type Stamp = int64
 
 /// Unique name generator for stamps attached to to val_specs, tycon_specs etc.
 //++GLOBAL MUTABLE STATE (concurrency-safe)
+#if FABLE_COMPILER
+let newStamp = let i = ref 0L in fun () -> i := !i + 1L; !i
+#else
 let newStamp = let i = ref 0L in fun () -> System.Threading.Interlocked.Increment(i)
+#endif
 
 /// A global generator of compiler generated names
 // ++GLOBAL MUTABLE STATE (concurrency safe  by locking inside NiceNameGenerator)
@@ -464,7 +475,7 @@ type EntityFlags(flags:int64) =
     member x.PickledBits =                         (flags       &&&  ~~~0b000001111000100L)
 
 
-#if DEBUG
+#if DEBUG && !FABLE_COMPILER
 assert (sizeof<ValFlags> = 8)
 assert (sizeof<EntityFlags> = 8)
 assert (sizeof<TyparFlags> = 4)

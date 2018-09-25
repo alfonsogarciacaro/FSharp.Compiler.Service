@@ -8,10 +8,12 @@
 /// REVIEW: review if we should just switch to System.Diagnostics
 module internal Microsoft.FSharp.Compiler.AbstractIL.Diagnostics
 
-open System.IO
 open Microsoft.FSharp.Core.Printf
+#if !FABLE_COMPILER
+open System.IO
 
 val public setDiagnosticsChannel: TextWriter option -> unit 
+#endif
 
 val public dprintfn: TextWriterFormat<'a> -> 'a 
 val public dprintf: TextWriterFormat<'a> -> 'a 

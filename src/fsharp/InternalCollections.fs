@@ -1,6 +1,10 @@
 // Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
 
 namespace Internal.Utilities.Collections
+#if FABLE_COMPILER
+open Internal.Utilities
+open Microsoft.FSharp.Collections
+#endif
 open System
 open System.Collections.Generic
 
@@ -109,6 +113,10 @@ type internal AgedLookup<'Token, 'Key, 'Value when 'Value : not struct>(keepStro
         refs <- newdata
         discard1 |> List.iter (snd >> strongDiscard)
         discard2 |> List.iter (snd >> snd >> strongDiscard)
+
+#if FABLE_COMPILER
+    new (keepStrongly, areSame, _) = AgedLookup<_,_,_>(keepStrongly, areSame)
+#endif
         
     member al.TryPeekKeyValue(tok, key) = 
         // Returns the original key value as well since it may be different depending on equality test.

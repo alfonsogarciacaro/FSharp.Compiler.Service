@@ -191,7 +191,7 @@ artifacts/*.nupkg
 *.orig
 *.mdf
 *.ldf
-.paket/paket.exe
+fcs/.paket/paket.exe
 paket-files
 docsrc/tools/FSharp.Formatting.svclog
 src/fsharp/FSharp.Compiler.Service/pplex.fs
@@ -201,6 +201,7 @@ src/fsharp/FSharp.Compiler.Service/pppars.fsi
 *.cto
 *.vstman
 project.lock.json
+.vscode
 
 src/fsharp/FSharp.Compiler.Service/FSComp.fs
 src/fsharp/FSharp.Compiler.Service/FSComp.resx

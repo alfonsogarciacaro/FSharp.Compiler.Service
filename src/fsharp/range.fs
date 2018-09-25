@@ -1,17 +1,20 @@
 // Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information.
 
-/// Anything to do with special names of identifiers and other lexical rules 
+/// Anything to do with special names of identifiers and other lexical rules
 module Microsoft.FSharp.Compiler.Range
 
+open Internal.Utilities
 open System
 open System.IO
 open System.Collections.Concurrent
 open Microsoft.FSharp.Core.Printf
+open Microsoft.FSharp.Compiler.AbstractIL
+open Microsoft.FSharp.Compiler.AbstractIL.Internal
 open Microsoft.FSharp.Compiler.AbstractIL.Internal.Library
 open Microsoft.FSharp.Compiler.Lib
 open Microsoft.FSharp.Compiler.Lib.Bits
 
-type FileIndex = int32 
+type FileIndex = int32
 
 [<Literal>]
 let columnBitCount = 20
@@ -29,9 +32,9 @@ let lineColumnMask = mask64 columnBitCount lineBitCount
 [<System.Diagnostics.DebuggerDisplay("{Line},{Column}")>]
 type pos(code:int64) =
 
-    new (l, c) = 
-        let l = max 0 l 
-        let c = max 0 c 
+    new (l, c) =
+        let l = max 0 l
+        let c = max 0 c
         let p = (int64 c &&& posColumnMask)
                 ||| ((int64 l <<< columnBitCount) &&& lineColumnMask)
         pos p
@@ -71,7 +74,7 @@ let heightBitCount = 27
 let isSyntheticBitCount = 1
 
 [<Literal>]
-let fileIndexShift   = 0 
+let fileIndexShift   = 0
 
 [<Literal>]
 let startColumnShift = 24
@@ -126,16 +129,16 @@ let _ = assert (isSyntheticMask = mask64 isSyntheticShift isSyntheticBitCount)
 #endif
 
 /// Removes relative parts from any full paths
-let normalizeFilePath (filePath: string) = 
-    try 
-        if FileSystem.IsPathRootedShim filePath then 
+let normalizeFilePath (filePath: string) =
+    try
+        if FileSystem.IsPathRootedShim filePath then
             FileSystem.GetFullPathShim filePath
         else
             filePath
     with _ -> filePath
 
 /// A unique-index table for file names.
-type FileIndexTable() = 
+type FileIndexTable() =
     let indexToFileTable = new ResizeArray<_>(11)
     let fileToIndexTable = new ConcurrentDictionary<string, int>()
 
@@ -145,41 +148,41 @@ type FileIndexTable() =
     // do not.  Also any file names which are not put into ranges at all are non-normalized.
     //
     // TO move forward we should eventually introduce a new type NormalizedFileName that tracks this invariant.
-    member t.FileToIndex normalize filePath = 
-        match fileToIndexTable.TryGetValue(filePath) with 
+    member t.FileToIndex normalize filePath =
+        match fileToIndexTable.TryGetValue(filePath) with
         | true, idx -> idx
-        | _ -> 
-        
+        | _ ->
+
         // Try again looking for a normalized entry.
         let normalizedFilePath = if normalize then normalizeFilePath filePath else filePath
-        match fileToIndexTable.TryGetValue(normalizedFilePath) with 
+        match fileToIndexTable.TryGetValue(normalizedFilePath) with
         | true, idx ->
             // Record the non-normalized entry if necessary
-            if filePath <> normalizedFilePath then 
-                lock fileToIndexTable (fun () -> 
+            if filePath <> normalizedFilePath then
+                lock fileToIndexTable (fun () ->
                     fileToIndexTable.[filePath] <- idx)
-                    
+
             // Return the index
             idx
-            
-        | _ -> 
-            lock fileToIndexTable (fun () -> 
+
+        | _ ->
+            lock fileToIndexTable (fun () ->
                 // Get the new index
                 let idx = indexToFileTable.Count
-                
+
                 // Record the normalized entry
                 indexToFileTable.Add normalizedFilePath
                 fileToIndexTable.[normalizedFilePath] <- idx
-                
+
                 // Record the non-normalized entry if necessary
-                if filePath <> normalizedFilePath then 
+                if filePath <> normalizedFilePath then
                     fileToIndexTable.[filePath] <- idx
 
                 // Return the index
                 idx)
 
-    member t.IndexToFile n = 
-        if n < 0 then 
+    member t.IndexToFile n =
+        if n < 0 then
             failwithf "fileOfFileIndex: negative argument: n = %d\n" n
         if n >= indexToFileTable.Count then
             failwithf "fileOfFileIndex: invalid argument: n = %d\n" n
@@ -192,9 +195,9 @@ let maxFileIndex = pown32 fileIndexBitCount
 let fileIndexTable = new FileIndexTable()
 
 // If we exceed the maximum number of files we'll start to report incorrect file names
-let fileIndexOfFileAux normalize f = fileIndexTable.FileToIndex normalize f % maxFileIndex 
+let fileIndexOfFileAux normalize f = fileIndexTable.FileToIndex normalize f % maxFileIndex
 
-let fileIndexOfFile filePath = fileIndexOfFileAux false filePath 
+let fileIndexOfFile filePath = fileIndexOfFileAux false filePath
 
 let fileOfFileIndex idx = fileIndexTable.IndexToFile idx
 
@@ -208,11 +211,11 @@ let mkPos l c = pos (l, c)
 #endif
 type range(code1:int64, code2: int64) =
     static member Zero = range(0L, 0L)
-    new (fidx, bl, bc, el, ec) = 
+    new (fidx, bl, bc, el, ec) =
         let code1 = ((int64 fidx) &&& fileIndexMask)
                 ||| ((int64 bc        <<< startColumnShift) &&& startColumnMask)
                 ||| ((int64 ec        <<< endColumnShift)  &&& endColumnMask)
-        let code2 = 
+        let code2 =
                     ((int64 bl        <<< startLineShift)  &&& startLineMask)
                 ||| ((int64 (el-bl)   <<< heightShift) &&& heightMask)
         range(code1, code2)
@@ -221,13 +224,13 @@ type range(code1:int64, code2: int64) =
 
     member r.StartLine   = int32((code2 &&& startLineMask)   >>> startLineShift)
 
-    member r.StartColumn = int32((code1 &&& startColumnMask) >>> startColumnShift) 
+    member r.StartColumn = int32((code1 &&& startColumnMask) >>> startColumnShift)
 
     member r.EndLine     = int32((code2 &&& heightMask)      >>> heightShift) + r.StartLine
 
     member r.EndColumn   = int32((code1 &&& endColumnMask)   >>> endColumnShift)
 
-    member r.IsSynthetic = int32((code2 &&& isSyntheticMask) >>> isSyntheticShift) <> 0 
+    member r.IsSynthetic = int32((code2 &&& isSyntheticMask) >>> isSyntheticShift) <> 0
 
     member r.Start = pos (r.StartLine, r.StartColumn)
 
@@ -258,7 +261,7 @@ type range(code1:int64, code2: int64) =
             |> String.concat "\n"
             |> fun s -> s.Substring(startCol + 1, s.LastIndexOf("\n", StringComparison.Ordinal) + 1 - startCol + endCol)
         with e ->
-            e.ToString()        
+            e.ToString()
 #endif
 
     member r.ToShortString() = sprintf "(%d,%d--%d,%d)" r.StartLine r.StartColumn r.EndLine r.EndColumn
@@ -280,8 +283,13 @@ let rangeOrder = Order.orderOn (fun (r:range) -> r.FileName, r.Start) (Pair.orde
 
 let outputPos   (os:TextWriter) (m:pos)   = fprintf os "(%d,%d)" m.Line m.Column
 
+#if FABLE_COMPILER
+let stringPos (m:pos) = sprintf "(%d,%d)" m.Line m.Column
+let outputRange (os:TextWriter) (m:range) = fprintf os "%s%s-%s" m.FileName (stringPos m.Start) (stringPos m.End)
+#else
 let outputRange (os:TextWriter) (m:range) = fprintf os "%s%a-%a" m.FileName outputPos m.Start outputPos m.End
-    
+#endif
+
 let posGt (p1:pos) (p2:pos) = (p1.Line > p2.Line || (p1.Line = p2.Line && p1.Column > p2.Column))
 
 let posEq (p1:pos) (p2:pos) = (p1.Line = p2.Line &&  p1.Column = p2.Column)
@@ -291,12 +299,12 @@ let posGeq p1 p2 = posEq p1 p2 || posGt p1 p2
 let posLt p1 p2 = posGt p2 p1
 
 /// This is deliberately written in an allocation-free way, i.e. m1.Start, m1.End etc. are not called
-let unionRanges (m1:range) (m2:range) = 
+let unionRanges (m1:range) (m2:range) =
     if m1.FileIndex <> m2.FileIndex then m2 else
-    let b = 
+    let b =
       if (m1.StartLine > m2.StartLine || (m1.StartLine = m2.StartLine && m1.StartColumn > m2.StartColumn)) then m2
       else m1
-    let e = 
+    let e =
       if (m1.EndLine > m2.EndLine || (m1.EndLine = m2.EndLine && m1.EndColumn > m2.EndColumn)) then m1
       else m2
     range (m1.FileIndex, b.StartLine, b.StartColumn, e.EndLine, e.EndColumn)
@@ -338,7 +346,7 @@ let stringOfPos   (pos:pos) = sprintf "(%d,%d)" pos.Line pos.Column
 let stringOfRange (r:range) = sprintf "%s%s-%s" r.FileName (stringOfPos r.Start) (stringOfPos r.End)
 
 #if CHECK_LINE0_TYPES // turn on to check that we correctly transform zero-based line counts to one-based line counts
-// Visual Studio uses line counts starting at 0, F# uses them starting at 1 
+// Visual Studio uses line counts starting at 0, F# uses them starting at 1
 [<Measure>] type ZeroBasedLineAnnotation
 
 type Line0 = int<ZeroBasedLineAnnotation>
@@ -350,14 +358,18 @@ type Range01 = Pos01 * Pos01
 
 module Line =
 
-    // Visual Studio uses line counts starting at 0, F# uses them starting at 1 
+    // Visual Studio uses line counts starting at 0, F# uses them starting at 1
     let fromZ (line:Line0) = int line+1
 
+#if FABLE_COMPILER
+    let toZ (line:int) : Line0 = int (line - 1)
+#else
     let toZ (line:int) : Line0 = LanguagePrimitives.Int32WithMeasure(line - 1)
+#endif
 
 module Pos =
 
-    let fromZ (line:Line0) idx = mkPos (Line.fromZ line) idx 
+    let fromZ (line:Line0) idx = mkPos (Line.fromZ line) idx
 
     let toZ (p:pos) = (Line.toZ p.Line, p.Column)
 

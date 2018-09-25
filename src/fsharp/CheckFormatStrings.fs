@@ -2,6 +2,9 @@
 
 module internal Microsoft.FSharp.Compiler.CheckFormatStrings
 
+#if FABLE_COMPILER
+open Internal.Utilities
+#endif
 open Microsoft.FSharp.Compiler 
 open Microsoft.FSharp.Compiler.AbstractIL.Internal.Library 
 open Microsoft.FSharp.Compiler.Ast

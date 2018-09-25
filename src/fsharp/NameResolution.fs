@@ -5,6 +5,11 @@
 module internal Microsoft.FSharp.Compiler.NameResolution
 
 open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Collections
+open Microsoft.FSharp.Core
+open Microsoft.FSharp.Core.Operators
+#endif
 open Microsoft.FSharp.Compiler 
 open Microsoft.FSharp.Compiler.Range
 open Microsoft.FSharp.Compiler.Ast
@@ -34,6 +39,9 @@ type NameResolver(g:TcGlobals,
                   amap: Import.ImportMap, 
                   infoReader: InfoReader, 
                   instantiationGenerator: (range -> Typars -> TypeInst)) =
+#if FABLE_COMPILER
+    new (g,amap,infoReader,instantiationGenerator,_) = NameResolver(g,amap,infoReader,instantiationGenerator)
+#endif
     /// Used to transform typars into new inference typars 
     // instantiationGenerator is a function to help us create the
     // type parameters by copying them from type parameter specifications read
@@ -1558,6 +1566,9 @@ type TcResultsSinkImpl(g, ?source: string) =
                 { Source = source 
                   LineStartPositions = positions })
 
+#if FABLE_COMPILER
+    new (g, source, _) = TcResultsSinkImpl(g, source)
+#endif
     member this.GetResolutions() = 
         TcResolutions(capturedEnvs, capturedExprTypings, capturedNameResolutions, capturedMethodGroupResolutions)
 
@@ -1582,8 +1593,17 @@ type TcResultsSinkImpl(g, ?source: string) =
             // for the same identifier at the same location.
             if allowedRange m then
                 if replace then 
+#if FABLE_COMPILER // RemoveAll not supported
+                    let r1 = capturedNameResolutions.FindAll(fun cnr -> cnr.Range <> m)
+                    let r2 = capturedMethodGroupResolutions.FindAll(fun cnr -> cnr.Range <> m)
+                    capturedNameResolutions.Clear()
+                    capturedMethodGroupResolutions.Clear()
+                    capturedNameResolutions.AddRange(r1)
+                    capturedMethodGroupResolutions.AddRange(r2)
+#else
                     capturedNameResolutions.RemoveAll(fun cnr -> cnr.Range = m) |> ignore
                     capturedMethodGroupResolutions.RemoveAll(fun cnr -> cnr.Range = m) |> ignore
+#endif
                 else
                     let alreadyDone =
                         match item with

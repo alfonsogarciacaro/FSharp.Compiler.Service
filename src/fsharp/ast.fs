@@ -2,6 +2,10 @@
 
 module public Microsoft.FSharp.Compiler.Ast
 
+#if FABLE_COMPILER
+open Internal.Utilities
+open Microsoft.FSharp.Core.Operators
+#endif
 open System.Collections.Generic
 open Internal.Utilities.Text.Lexing
 open Internal.Utilities.Text.Parsing

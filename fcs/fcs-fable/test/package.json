@@ -1,0 +1,22 @@
+{
+  "name": "fcs-fable-test",
+  "version": "1.0.0",
+  "description": "FCS-Fable test",
+  "keywords": [],
+  "author": "",
+  "license": "",
+  "scripts": {
+    "preinstall": "dotnet restore",
+    "build": "dotnet fable npm-run splitter",
+    "rollup": "rollup -c",
+    "splitter": "node ./node_modules/fable-splitter/cli -c splitter.config.js",
+    "start": "node out/app"
+  },
+  "devDependencies": {
+    "babel-core": "^6.26.3",
+    "babel-preset-env": "^1.7.0",
+    "fable-splitter": "^0.1.21",
+    "rollup": "^0.66.2",
+    "rollup-plugin-fable": "^1.1.1"
+  }
+}

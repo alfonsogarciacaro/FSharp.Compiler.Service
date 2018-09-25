@@ -28,6 +28,8 @@ open Microsoft.FSharp.Compiler.Range
 open Microsoft.FSharp.Compiler.Lexhelp
 open Microsoft.FSharp.Compiler.IlxGen
 
+#if !FABLE_COMPILER
+
 #if FX_RESHAPED_REFLECTION
 open Microsoft.FSharp.Core.ReflectionAdapters
 #endif
@@ -840,7 +842,9 @@ let testFlag tcConfigB =
                                             | "FunctionSizes"    -> tcConfigB.optSettings <- { tcConfigB.optSettings with reportFunctionSizes = true }
                                             | "TotalSizes"       -> tcConfigB.optSettings <- { tcConfigB.optSettings with reportTotalSizes = true }
                                             | "HasEffect"        -> tcConfigB.optSettings <- { tcConfigB.optSettings with reportHasEffect = true }
+#if !FABLE_COMPILER
                                             | "NoErrorText"      -> FSComp.SR.SwallowResourceText <- true
+#endif
                                             | "EmitFeeFeeAs100001" -> tcConfigB.testFlagEmitFeeFeeAs100001 <- true
                                             | "DumpDebugInfo"    -> tcConfigB.dumpDebugInfo <- true
                                             | "ShowLoadedAssemblies" -> tcConfigB.showLoadedAssemblies <- true
@@ -1231,6 +1235,8 @@ let ReportTime (tcConfig:TcConfig) descr =
 
     nPrev := Some descr
 
+#endif //!FABLE_COMPILER
+
 //----------------------------------------------------------------------------
 // OPTIMIZATION - support - addDllToOptEnv
 //----------------------------------------------------------------------------
@@ -1256,14 +1262,21 @@ let ApplyAllOptimizations (tcConfig:TcConfig, tcGlobals, tcVal, outfile, importM
     // Always optimize once - the results of this step give the x-module optimization 
     // info.  Subsequent optimization steps choose representations etc. which we don't 
     // want to save in the x-module info (i.e. x-module info is currently "high level"). 
+#if FABLE_COMPILER
+    ignore outfile
+#else
     PrintWholeAssemblyImplementation tcConfig outfile "pass-start" implFiles
+#endif
+
 #if DEBUG
     if tcConfig.showOptimizationData then dprintf "Expression prior to optimization:\n%s\n" (Layout.showL (Layout.squashTo 192 (DebugPrint.implFilesL implFiles)))
     if tcConfig.showOptimizationData then dprintf "CCU prior to optimization:\n%s\n" (Layout.showL (Layout.squashTo 192 (DebugPrint.entityL ccu.Contents)))
 #endif
 
     let optEnv0 = optEnv
+#if !FABLE_COMPILER
     ReportTime tcConfig ("Optimizations")
+#endif
 
     // Only do abstract_big_targets on the first pass!  Only do it when TLR is on!  
     let optSettings = tcConfig.optSettings 
@@ -1324,11 +1337,13 @@ let ApplyAllOptimizations (tcConfig:TcConfig, tcGlobals, tcVal, outfile, importM
     let implFiles,implFileOptDatas = List.unzip results
     let assemblyOptData = Optimizer.UnionOptimizationInfos implFileOptDatas
     let tassembly = TypedAssemblyAfterOptimization(implFiles)
+#if !FABLE_COMPILER
     PrintWholeAssemblyImplementation tcConfig outfile "pass-end" (List.map fst implFiles)
     ReportTime tcConfig ("Ending Optimizations")
-
+#endif
     tassembly, assemblyOptData, optEnvFirstLoop
 
+#if !FABLE_COMPILER
 
 //----------------------------------------------------------------------------
 // ILX generation 
@@ -1408,3 +1423,5 @@ let DoWithErrorColor isError f =
         let errorColor = ConsoleColor.Red
         let color = if isError then errorColor else warnColor 
         DoWithColor color f
+
+#endif //!FABLE_COMPILER

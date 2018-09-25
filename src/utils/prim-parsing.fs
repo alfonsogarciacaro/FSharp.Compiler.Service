@@ -14,7 +14,7 @@ exception RecoverableParseError
 exception Accept of obj
 
 [<Sealed>]
-type internal IParseState(ruleStartPoss:Position[], ruleEndPoss:Position[], lhsPos:Position[], ruleValues:obj[], lexbuf:LexBuffer<char>) = 
+type internal IParseState(ruleStartPoss:Position[], ruleEndPoss:Position[], lhsPos:Position[], ruleValues:obj[], lexbuf:LexBuffer<char>) =
     member p.LexBuffer = lexbuf
 
     member p.InputRange n = ruleStartPoss.[n-1], ruleEndPoss.[n-1]
@@ -27,12 +27,12 @@ type internal IParseState(ruleStartPoss:Position[], ruleEndPoss:Position[], lhsP
 
     member p.ResultEndPosition    = lhsPos.[1]
 
-    member p.GetInput n    = ruleValues.[n-1]        
+    member p.GetInput n    = ruleValues.[n-1]
 
-    member p.ResultRange    = (lhsPos.[0], lhsPos.[1])  
+    member p.ResultRange    = (lhsPos.[0], lhsPos.[1])
 
     // Side note: this definition coincidentally tests the fairly complex logic associated with an object expression implementing a generic abstract method.
-    member p.RaiseError()  = raise RecoverableParseError 
+    member p.RaiseError()  = raise RecoverableParseError
 
 
 [<Sealed>]
@@ -40,11 +40,11 @@ type internal IParseState(ruleStartPoss:Position[], ruleEndPoss:Position[], lhsP
 type internal ParseErrorContext<'tok>
          (//lexbuf: LexBuffer<_>,
           stateStack:int list,
-          parseState: IParseState, 
-          reduceTokens: int list, 
-          currentToken: 'tok option, 
-          reducibleProductions: int list list, 
-          shiftableTokens: int list , 
+          parseState: IParseState,
+          reduceTokens: int list,
+          currentToken: 'tok option,
+          reducibleProductions: int list list,
+          shiftableTokens: int list ,
           message : string) =
       //member x.LexBuffer = lexbuf
       member x.StateStack  = stateStack
@@ -57,21 +57,21 @@ type internal ParseErrorContext<'tok>
 
 
 //-------------------------------------------------------------------------
-// This is the data structure emitted as code by FSYACC.  
+// This is the data structure emitted as code by FSYACC.
 
-type internal Tables<'tok> = 
+type internal Tables<'tok> =
     { reductions: (IParseState -> obj)[]
       endOfInputTag: int
       tagOfToken: 'tok -> int
-      dataOfToken: 'tok -> obj 
-      actionTableElements: uint16[]  
+      dataOfToken: 'tok -> obj
+      actionTableElements: uint16[]
       actionTableRowOffsets: uint16[]
       reductionSymbolCounts: uint16[]
       immediateActions: uint16[]
       gotos: uint16[]
       sparseGotoTableRowOffsets: uint16[]
-      stateToProdIdxsTableElements: uint16[]  
-      stateToProdIdxsTableRowOffsets: uint16[]  
+      stateToProdIdxsTableElements: uint16[]
+      stateToProdIdxsTableRowOffsets: uint16[]
       productionToNonTerminalTable: uint16[]
       /// For <c>fsyacc.exe</c>, this entry is filled in by context from the generated parser file. If no 'parse_error' function
       /// is defined by the user then <c>ParseHelpers.parse_error</c> is used by default (ParseHelpers is opened
@@ -86,40 +86,45 @@ type internal Tables<'tok> =
 // This type is in <c>System.dll</c> so for the moment we can't use it in <c>FSharp.Core.dll</c>
 // type Stack<'a> = System.Collections.Generic.Stack<'a>
 
-type Stack<'a>(n)  = 
+type Stack<'a>(n)  =
     let mutable contents = Array.zeroCreate<'a>(n)
     let mutable count = 0
 
-    member buf.Ensure newSize = 
+#if FABLE_COMPILER
+    new (n, _) = Stack<'a>(n)
+#endif
+    member buf.Ensure newSize =
         let oldSize = contents.Length
-        if newSize > oldSize then 
+        if newSize > oldSize then
             let old = contents
             contents <- Array.zeroCreate (max newSize (oldSize * 2))
             Array.blit old 0 contents 0 count
-    
+
     member buf.Count = count
-    member buf.Pop() = count <- count - 1
+    member buf.Pop() = count <- count - 1; contents.[count]
     member buf.Peep() = contents.[count - 1]
     member buf.Top(n) = [ for x in contents.[max 0 (count-n)..count - 1] -> x ] |> List.rev
     member buf.Push(x) =
-        buf.Ensure(count + 1) 
-        contents.[count] <- x 
+        buf.Ensure(count + 1)
+        contents.[count] <- x
         count <- count + 1
-        
+
     member buf.IsEmpty = (count = 0)
-    member buf.PrintStack() = 
-        for i = 0 to (count - 1) do 
-            System.Console.Write("{0}{1}",(contents.[i]),if i=count-1 then ":" else "-") 
-          
+#if DEBUG
+    member buf.PrintStack() =
+        for i = 0 to (count - 1) do
+            System.Console.Write("{0}{1}",(contents.[i]),if i=count-1 then ":" else "-")
+#endif
+
 
 #if DEBUG
-module Flags = 
+module Flags =
     let mutable debug = false
 #endif
 
-module internal Implementation = 
-    
-    // Definitions shared with fsyacc 
+module internal Implementation =
+
+    // Definitions shared with fsyacc
     let anyMarker = 0xffff
     let shiftFlag = 0x0000
     let reduceFlag = 0x4000
@@ -127,11 +132,11 @@ module internal Implementation =
     let acceptFlag = 0xc000
     let actionMask = 0xc000
 
-    let actionValue action = action &&& (~~~ actionMask)                                    
+    let actionValue action = action &&& (~~~ actionMask)
     let actionKind action = action &&& actionMask
-    
+
     //-------------------------------------------------------------------------
-    // Read the tables written by FSYACC.  
+    // Read the tables written by FSYACC.
 
     type AssocTable(elemTab:uint16[], offsetTab:uint16[]) =
         let cacheSize = 7919 // the 1000'th prime
@@ -139,12 +144,12 @@ module internal Implementation =
         // hash bucket per key.
         let cache = Array.zeroCreate<int> (cacheSize * 2)
 
-        member t.ReadAssoc (minElemNum,maxElemNum,defaultValueOfAssoc,keyToFind) =     
-            // do a binary chop on the table 
+        member t.ReadAssoc (minElemNum,maxElemNum,defaultValueOfAssoc,keyToFind) =
+            // do a binary chop on the table
             let elemNumber : int = (minElemNum+maxElemNum)/2
-            if elemNumber = maxElemNum 
+            if elemNumber = maxElemNum
             then defaultValueOfAssoc
-            else 
+            else
                 let x = int elemTab.[elemNumber*2]
                 if keyToFind = x then int elemTab.[elemNumber*2+1]
                 elif keyToFind < x then t.ReadAssoc (minElemNum ,elemNumber,defaultValueOfAssoc,keyToFind)
@@ -154,7 +159,7 @@ module internal Implementation =
 
             // First check the sparse lookaside table
             // Performance note: without this lookaside table the binary chop in ReadAssoc
-            // takes up around 10% of of parsing time 
+            // takes up around 10% of of parsing time
             // for parsing intensive samples such as the bootstrapped F# compiler.
             //
             // NOTE: using a .NET Dictionary for this int -> int table looks like it could be sub-optimal.
@@ -165,12 +170,12 @@ module internal Implementation =
             let cacheIdx = (int32 (uint32 cacheKey % uint32 cacheSize)) * 2
             let cacheKey2 = cache.[cacheIdx]
             let v = cache.[cacheIdx+1]
-            if cacheKey = cacheKey2 then v 
+            if cacheKey = cacheKey2 then v
             else
                 let headOfTable = int offsetTab.[rowNumber]
-                let firstElemNumber = headOfTable + 1           
+                let firstElemNumber = headOfTable + 1
                 let numberOfElementsInAssoc = int elemTab.[headOfTable*2]
-                let defaultValueOfAssoc = int elemTab.[headOfTable*2+1]          
+                let defaultValueOfAssoc = int elemTab.[headOfTable*2+1]
                 let res = t.ReadAssoc (firstElemNumber,firstElemNumber+numberOfElementsInAssoc,defaultValueOfAssoc,keyToFind)
                 cache.[cacheIdx] <- cacheKey
                 cache.[cacheIdx+1] <- res
@@ -178,74 +183,74 @@ module internal Implementation =
 
         // Read all entries in the association table
         // Used during error recovery to find all valid entries in the table
-        member x.ReadAll(n) =       
+        member x.ReadAll(n) =
             let headOfTable = int offsetTab.[n]
-            let firstElemNumber = headOfTable + 1           
-            let numberOfElementsInAssoc = int32 elemTab.[headOfTable*2]           
-            let defaultValueOfAssoc = int elemTab.[headOfTable*2+1]          
-            [ for i in firstElemNumber .. (firstElemNumber+numberOfElementsInAssoc-1) -> 
+            let firstElemNumber = headOfTable + 1
+            let numberOfElementsInAssoc = int32 elemTab.[headOfTable*2]
+            let defaultValueOfAssoc = int elemTab.[headOfTable*2+1]
+            [ for i in firstElemNumber .. (firstElemNumber+numberOfElementsInAssoc-1) ->
                 (int elemTab.[i*2], int elemTab.[i*2+1]) ], defaultValueOfAssoc
 
     type IdxToIdxListTable(elemTab:uint16[], offsetTab:uint16[]) =
 
         // Read all entries in a row of the table
-        member x.ReadAll(n) =       
+        member x.ReadAll(n) =
             let headOfTable = int offsetTab.[n]
-            let firstElemNumber = headOfTable + 1           
-            let numberOfElements = int32 elemTab.[headOfTable]           
+            let firstElemNumber = headOfTable + 1
+            let numberOfElements = int32 elemTab.[headOfTable]
             [ for i in firstElemNumber .. (firstElemNumber+numberOfElements-1) -> int elemTab.[i] ]
 
     //-------------------------------------------------------------------------
-    // interpret the tables emitted by FSYACC.  
+    // interpret the tables emitted by FSYACC.
 
     [<NoEquality; NoComparison>]
     [<Struct>]
-    type ValueInfo = 
+    type ValueInfo =
         val value: obj
         val startPos: Position
         val endPos: Position
         new(value,startPos,endPos) = { value=value; startPos=startPos;endPos=endPos }
 
-    let interpret (tables: Tables<'tok>) lexer (lexbuf : LexBuffer<_>) initialState =                                                                      
+    let interpret (tables: Tables<'tok>) lexer (lexbuf : LexBuffer<_>) initialState =
 #if DEBUG
         if Flags.debug then System.Console.WriteLine("\nParser: interpret tables")
 #endif
         let stateStack : Stack<int> = new Stack<_>(100)
         stateStack.Push(initialState)
         let valueStack = new Stack<ValueInfo>(100)
-        let mutable haveLookahead = false                                                                              
+        let mutable haveLookahead = false
         let mutable lookaheadToken = Unchecked.defaultof<'tok>
         let mutable lookaheadEndPos = Unchecked.defaultof<Position>
         let mutable lookaheadStartPos = Unchecked.defaultof<Position>
         let mutable finished = false
         // After an error occurs, we suppress errors until we've shifted three tokens in a row.
         let mutable errorSuppressionCountDown = 0
-        
+
         // When we hit the end-of-file we don't fail straight away but rather keep permitting shift
         // and reduce against the last token in the token stream 20 times or until we've accepted
         // or exhausted the stack. This allows error recovery rules of the form
         //      input : realInput EOF | realInput error EOF | error EOF
-        // where consuming one EOF to trigger an error doesn't result in overall parse failure 
+        // where consuming one EOF to trigger an error doesn't result in overall parse failure
         // catastrophe and the loss of intermediate results.
         //
         let mutable inEofCountDown = false
         let mutable eofCountDown = 20 // Number of EOFs to supply at the end for error recovery
         // The 100 here means a maximum of 100 elements for each rule
-        let ruleStartPoss = (Array.zeroCreate 100 : Position[])              
-        let ruleEndPoss   = (Array.zeroCreate 100 : Position[])              
-        let ruleValues    = (Array.zeroCreate 100 : obj[])              
-        let lhsPos        = (Array.zeroCreate 2 : Position[])                                            
+        let ruleStartPoss = (Array.zeroCreate 100 : Position[])
+        let ruleEndPoss   = (Array.zeroCreate 100 : Position[])
+        let ruleValues    = (Array.zeroCreate 100 : obj[])
+        let lhsPos        = (Array.zeroCreate 2 : Position[])
         let reductions = tables.reductions
         let actionTable = new AssocTable(tables.actionTableElements, tables.actionTableRowOffsets)
         let gotoTable = new AssocTable(tables.gotos, tables.sparseGotoTableRowOffsets)
         let stateToProdIdxsTable = new IdxToIdxListTable(tables.stateToProdIdxsTableElements, tables.stateToProdIdxsTableRowOffsets)
 
-        let parseState =                                                                                            
+        let parseState =
             new IParseState(ruleStartPoss,ruleEndPoss,lhsPos,ruleValues,lexbuf)
 
 #if DEBUG
-        let report haveLookahead lookaheadToken = 
-            if haveLookahead then sprintf "%+A" lookaheadToken 
+        let report haveLookahead lookaheadToken =
+            if haveLookahead then sprintf "%+A" lookaheadToken
             else "[TBC]"
 #endif
 
@@ -257,132 +262,132 @@ module internal Implementation =
 #if DEBUG
             if Flags.debug then System.Console.WriteLine("popStackUntilErrorShifted")
 #endif
-            if stateStack.IsEmpty then 
+            if stateStack.IsEmpty then
 #if DEBUG
-                if Flags.debug then 
+                if Flags.debug then
                     System.Console.WriteLine("state stack empty during error recovery - generating parse error")
 #endif
                 failwith "parse error"
-            
+
             let currState = stateStack.Peep()
 #if DEBUG
-            if Flags.debug then 
+            if Flags.debug then
                 System.Console.WriteLine("In state {0} during error recovery", currState)
 #endif
-            
+
             let action = actionTable.Read(currState, tables.tagOfErrorTerminal)
-            
-            if actionKind action = shiftFlag &&  
-                (match tokenOpt with 
+
+            if actionKind action = shiftFlag &&
+                (match tokenOpt with
                  | None -> true
-                 | Some(token) -> 
-                    let nextState = actionValue action 
+                 | Some(token) ->
+                    let nextState = actionValue action
                     actionKind (actionTable.Read(nextState, tables.tagOfToken(token))) = shiftFlag) then
 
 #if DEBUG
                 if Flags.debug then System.Console.WriteLine("shifting error, continuing with error recovery")
 #endif
-                let nextState = actionValue action 
+                let nextState = actionValue action
                 // The "error" non terminal needs position information, though it tends to be unreliable.
                 // Use the StartPos/EndPos from the lex buffer.
                 valueStack.Push(ValueInfo(box (), lexbuf.StartPos, lexbuf.EndPos))
                 stateStack.Push(nextState)
             else
-                if valueStack.IsEmpty then 
+                if valueStack.IsEmpty then
                     failwith "parse error"
 #if DEBUG
-                if Flags.debug then 
+                if Flags.debug then
                     System.Console.WriteLine("popping stack during error recovery")
 #endif
                 valueStack.Pop()
                 stateStack.Pop()
                 popStackUntilErrorShifted(tokenOpt)
 
-        while not finished do                                                                                    
-            if stateStack.IsEmpty then 
+        while not finished do
+            if stateStack.IsEmpty then
                 finished <- true
             else
                 let state = stateStack.Peep()
 #if DEBUG
                 if Flags.debug then (Console.Write("{0} value(state), state ",valueStack.Count); stateStack.PrintStack())
 #endif
-                let action = 
+                let action =
                     let immediateAction = int tables.immediateActions.[state]
                     if not (immediateAction = anyMarker) then
-                        // Action has been pre-determined, no need to lookahead 
-                        // Expecting it to be a Reduce action on a non-fakeStartNonTerminal ? 
+                        // Action has been pre-determined, no need to lookahead
+                        // Expecting it to be a Reduce action on a non-fakeStartNonTerminal ?
                         immediateAction
                     else
-                        // Lookahead required to determine action 
-                        if not haveLookahead then 
-                            if lexbuf.IsPastEndOfStream then 
+                        // Lookahead required to determine action
+                        if not haveLookahead then
+                            if lexbuf.IsPastEndOfStream then
                                 // When the input runs out, keep supplying the last token for eofCountDown times
                                 if eofCountDown>0 then
                                     haveLookahead <- true
                                     eofCountDown <- eofCountDown - 1
                                     inEofCountDown <- true
-                                else 
+                                else
                                     haveLookahead <- false
-                            else 
+                            else
                                 lookaheadToken <- lexer lexbuf
                                 lookaheadStartPos <- lexbuf.StartPos
                                 lookaheadEndPos <- lexbuf.EndPos
                                 haveLookahead <- true
 
-                        let tag = 
-                            if haveLookahead then tables.tagOfToken lookaheadToken 
-                            else tables.endOfInputTag   
-                                    
-                        // printf "state %d\n" state  
+                        let tag =
+                            if haveLookahead then tables.tagOfToken lookaheadToken
+                            else tables.endOfInputTag
+
+                        // printf "state %d\n" state
                         actionTable.Read(state,tag)
-                        
-                let kind = actionKind action 
+
+                let kind = actionKind action
                 if kind = shiftFlag then (
-                    if errorSuppressionCountDown > 0 then 
+                    if errorSuppressionCountDown > 0 then
                         errorSuppressionCountDown <- errorSuppressionCountDown - 1
 #if DEBUG
                         if Flags.debug then Console.WriteLine("shifting, reduced errorRecoverylevel to {0}\n", errorSuppressionCountDown)
 #endif
-                    let nextState = actionValue action                                     
+                    let nextState = actionValue action
                     if not haveLookahead then failwith "shift on end of input!"
                     let data = tables.dataOfToken lookaheadToken
                     valueStack.Push(ValueInfo(data, lookaheadStartPos, lookaheadEndPos))
-                    stateStack.Push(nextState)                                                                
+                    stateStack.Push(nextState)
 #if DEBUG
                     if Flags.debug then Console.WriteLine("shift/consume input {0}, shift to state {1}", report haveLookahead lookaheadToken, nextState)
 #endif
                     haveLookahead <- false
 
                 ) elif kind = reduceFlag then
-                    let prod = actionValue action                                     
-                    let reduction = reductions.[prod]                                                             
+                    let prod = actionValue action
+                    let reduction = reductions.[prod]
                     let n = int tables.reductionSymbolCounts.[prod]
-                       // pop the symbols, populate the values and populate the locations                              
+                       // pop the symbols, populate the values and populate the locations
 #if DEBUG
                     if Flags.debug then Console.Write("reduce popping {0} values/states, lookahead {1}", n, report haveLookahead lookaheadToken)
 #endif
-                    for i = 0 to n - 1 do                                                                             
+                    for i = 0 to n - 1 do
                         if valueStack.IsEmpty then failwith "empty symbol stack"
                         let topVal = valueStack.Peep()
                         valueStack.Pop()
                         stateStack.Pop()
-                        ruleValues.[(n-i)-1] <- topVal.value  
-                        ruleStartPoss.[(n-i)-1] <- topVal.startPos  
-                        ruleEndPoss.[(n-i)-1] <- topVal.endPos  
-                        if i = 0 then lhsPos.[1] <- topVal.endPos                                     
+                        ruleValues.[(n-i)-1] <- topVal.value
+                        ruleStartPoss.[(n-i)-1] <- topVal.startPos
+                        ruleEndPoss.[(n-i)-1] <- topVal.endPos
+                        if i = 0 then lhsPos.[1] <- topVal.endPos
                         if i = n - 1 then lhsPos.[0] <- topVal.startPos
 
-                    // Use the lookahead token to populate the locations if the rhs is empty                        
-                    if n = 0 then 
-                        if haveLookahead then 
-                           lhsPos.[0] <- lookaheadStartPos                                                                     
-                           lhsPos.[1] <- lookaheadEndPos                                                                       
-                        else 
+                    // Use the lookahead token to populate the locations if the rhs is empty
+                    if n = 0 then
+                        if haveLookahead then
+                           lhsPos.[0] <- lookaheadStartPos
+                           lhsPos.[1] <- lookaheadEndPos
+                        else
                            lhsPos.[0] <- lexbuf.StartPos
                            lhsPos.[1] <- lexbuf.EndPos
-                    try                                                                                               
-                          // printf "reduce %d\n" prod                                                       
-                        let redResult = reduction parseState                                                          
+                    try
+                          // printf "reduce %d\n" prod
+                        let redResult = reduction parseState
                         valueStack.Push(ValueInfo(redResult, lhsPos.[0], lhsPos.[1]))
                         let currState = stateStack.Peep()
                         let newGotoState = gotoTable.Read(int tables.productionToNonTerminalTable.[prod], currState)
@@ -390,40 +395,40 @@ module internal Implementation =
 #if DEBUG
                         if Flags.debug then Console.WriteLine(" goto state {0}", newGotoState)
 #endif
-                    with                                                                                              
-                    | Accept res ->                                                                            
-                          finished <- true                                                                             
-                          valueStack.Push(ValueInfo(res, lhsPos.[0], lhsPos.[1])) 
+                    with
+                    | Accept res ->
+                          finished <- true
+                          valueStack.Push(ValueInfo(res, lhsPos.[0], lhsPos.[1]))
                     | RecoverableParseError ->
 #if DEBUG
                           if Flags.debug then Console.WriteLine("RecoverableParseErrorException...\n")
 #endif
                           popStackUntilErrorShifted(None)
-                          // User code raised a Parse_error. Don't report errors again until three tokens have been shifted 
+                          // User code raised a Parse_error. Don't report errors again until three tokens have been shifted
                           errorSuppressionCountDown <- 3
                 elif kind = errorFlag then (
 #if DEBUG
                     if Flags.debug then Console.Write("ErrorFlag... ")
 #endif
-                    // Silently discard inputs and don't report errors 
-                    // until three tokens in a row have been shifted 
+                    // Silently discard inputs and don't report errors
+                    // until three tokens in a row have been shifted
 #if DEBUG
                     if Flags.debug then printfn "error on token '%s' " (report haveLookahead lookaheadToken)
 #endif
-                    if errorSuppressionCountDown > 0 then 
+                    if errorSuppressionCountDown > 0 then
                         // If we're in the end-of-file count down then we're very keen to 'Accept'.
                         // We can only do this by repeatedly popping the stack until we can shift both an 'error' token
-                        // and an EOF token. 
-                        if inEofCountDown && eofCountDown < 10 then 
+                        // and an EOF token.
+                        if inEofCountDown && eofCountDown < 10 then
 #if DEBUG
-                            if Flags.debug then printfn "popping stack, looking to shift both 'error' and that token, during end-of-file error recovery" 
+                            if Flags.debug then printfn "popping stack, looking to shift both 'error' and that token, during end-of-file error recovery"
 #endif
                             popStackUntilErrorShifted(if haveLookahead then Some(lookaheadToken) else None)
 
                         // If we don't haveLookahead then the end-of-file count down is over and we have no further options.
-                        if not haveLookahead then 
+                        if not haveLookahead then
                             failwith "parse error: unexpected end of file"
-                            
+
 #if DEBUG
                         if Flags.debug then printfn "discarding token '%s' during error suppression" (report haveLookahead lookaheadToken)
 #endif
@@ -434,32 +439,32 @@ module internal Implementation =
                     else (
 
                         let currentToken = if haveLookahead then Some(lookaheadToken) else None
-                        let actions,defaultAction = actionTable.ReadAll(state) 
+                        let actions,defaultAction = actionTable.ReadAll(state)
                         let explicit = Set.ofList [ for (tag,_action) in actions -> tag ]
-                        
-                        let shiftableTokens = 
+
+                        let shiftableTokens =
                            [ for (tag,action) in actions do
-                                 if (actionKind action) = shiftFlag then 
+                                 if (actionKind action) = shiftFlag then
                                      yield tag
                              if actionKind defaultAction = shiftFlag  then
-                                 for tag in 0 .. tables.numTerminals-1 do  
-                                    if not (explicit.Contains(tag)) then 
+                                 for tag in 0 .. tables.numTerminals-1 do
+                                    if not (explicit.Contains(tag)) then
                                          yield tag ] in
 
                         let stateStack = stateStack.Top(12) in
-                        let reducibleProductions = 
-                            [ for state in stateStack do 
+                        let reducibleProductions =
+                            [ for state in stateStack do
                                yield stateToProdIdxsTable.ReadAll(state)  ]
 
-                        let reduceTokens = 
+                        let reduceTokens =
                            [ for (tag,action) in actions do
                                 if actionKind(action) = reduceFlag then
                                     yield tag
                              if actionKind(defaultAction) = reduceFlag  then
-                                 for tag in 0 .. tables.numTerminals-1 do  
-                                    if not (explicit.Contains(tag)) then 
+                                 for tag in 0 .. tables.numTerminals-1 do
+                                    if not (explicit.Contains(tag)) then
                                          yield tag ] in
-                        //let activeRules = stateStack |> List.iter (fun state -> 
+                        //let activeRules = stateStack |> List.iter (fun state ->
                         let errorContext = new ParseErrorContext<'tok>(stateStack, parseState, reduceTokens, currentToken, reducibleProductions, shiftableTokens, "syntax error")
                         tables.parseError(errorContext)
                         popStackUntilErrorShifted(None)
@@ -468,21 +473,21 @@ module internal Implementation =
                         if Flags.debug then System.Console.WriteLine("generated syntax error and shifted error token, haveLookahead = {0}\n", haveLookahead)
 #endif
                     )
-                ) elif kind = acceptFlag then 
+                ) elif kind = acceptFlag then
                     finished <- true
 #if DEBUG
                 else
-                  if Flags.debug then System.Console.WriteLine("ALARM!!! drop through case in parser")  
+                  if Flags.debug then System.Console.WriteLine("ALARM!!! drop through case in parser")
 #endif
-        done                                                                                                     
+        done
         // OK, we're done - read off the overall generated value
         valueStack.Peep().value
 
 type internal Tables<'tok> with
-    member tables.Interpret (lexer, lexbuf, initialState) = 
+    member tables.Interpret (lexer, lexbuf, initialState) =
         Implementation.interpret tables lexer lexbuf initialState
-    
-module internal ParseHelpers = 
+
+module internal ParseHelpers =
 
     let parse_error (_s:string) = ()
 

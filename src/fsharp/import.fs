@@ -3,6 +3,10 @@
 /// Functions to import .NET binary metadata as TAST objects
 module internal Microsoft.FSharp.Compiler.Import
 
+open Internal.Utilities
+#if FABLE_COMPILER
+open Microsoft.FSharp.Core.Operators
+#endif
 open System.Reflection
 open System.Collections.Concurrent
 open System.Collections.Generic
@@ -54,6 +58,9 @@ type AssemblyLoader =
 [<Sealed>]
 type ImportMap(g:TcGlobals,assemblyLoader:AssemblyLoader) =
     let typeRefToTyconRefCache = ConcurrentDictionary<ILTypeRef,TyconRef>()
+#if FABLE_COMPILER
+    new (g,assemblyLoader,_) = ImportMap(g,assemblyLoader)
+#endif
     member this.g = g
     member this.assemblyLoader = assemblyLoader
     member this.ILTypeRefToTyconRefCache = typeRefToTyconRefCache

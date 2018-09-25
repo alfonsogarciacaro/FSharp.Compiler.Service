@@ -3,6 +3,7 @@
 /// Coordinating compiler operations - configuration, loading initial context, reporting errors etc.
 module internal Microsoft.FSharp.Compiler.CompileOps
 
+open Internal.Utilities
 open System
 open System.Text
 open System.Collections.Generic

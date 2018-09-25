@@ -2,9 +2,12 @@
 
 module internal Microsoft.FSharp.Compiler.QuotationPickler
 
-
-open System.Text
+open Internal.Utilities
 open Internal.Utilities.Collections
+#if FABLE_COMPILER
+open Microsoft.FSharp.Collections
+#endif
+open System.Text
 open Microsoft.FSharp.Compiler.AbstractIL.Internal
 open Microsoft.FSharp.Compiler
 open Microsoft.FSharp.Compiler.Lib

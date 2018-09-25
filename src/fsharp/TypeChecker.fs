@@ -4,10 +4,13 @@
 /// with generalization at appropriate points.
 module internal Microsoft.FSharp.Compiler.TypeChecker
 
+open Internal.Utilities
+
+#if FABLE_COMPILER
+open Microsoft.FSharp.Core.Operators
+#endif
 open System
 open System.Collections.Generic
-
-open Internal.Utilities
 
 open Microsoft.FSharp.Compiler.AbstractIL 
 open Microsoft.FSharp.Compiler.AbstractIL.IL 
@@ -12262,8 +12265,8 @@ module TcRecdUnionAndEnumDeclarations = begin
     let ValidateFieldNames (synFields : SynField list, tastFields : RecdField list) = 
         let seen = Dictionary()
         for (sf, f) in List.zip synFields tastFields do
-            let mutable synField = Unchecked.defaultof<_>
-            if seen.TryGetValue(f.Name, &synField) then
+            let ok, synField = seen.TryGetValue(f.Name)
+            if ok then
                 match sf, synField with
                 | Field(_, _, Some(id), _, _, _, _, _), Field(_, _, Some(_), _, _, _, _, _) ->
                     error(Error(FSComp.SR.tcFieldNameIsUsedModeThanOnce(id.idText), id.idRange))
