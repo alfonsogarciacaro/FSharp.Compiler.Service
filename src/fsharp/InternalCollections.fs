@@ -114,9 +114,6 @@ type internal AgedLookup<'Token, 'Key, 'Value when 'Value : not struct>(keepStro
         discard1 |> List.iter (snd >> strongDiscard)
         discard2 |> List.iter (snd >> snd >> strongDiscard)
 
-#if FABLE_COMPILER
-    new (keepStrongly, areSame, _) = AgedLookup<_,_,_>(keepStrongly, areSame)
-#endif
         
     member al.TryPeekKeyValue(tok, key) = 
         // Returns the original key value as well since it may be different depending on equality test.

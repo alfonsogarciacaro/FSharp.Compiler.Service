@@ -1158,9 +1158,7 @@ let primMkMatch(spBind, exprm, tree, targets, matchm, ty) = Expr.Match (spBind, 
 type MatchBuilder(spBind, inpRange: Range.range) = 
 
     let targets = new ResizeArray<_>(10) 
-#if FABLE_COMPILER
-    new (spBind,inpRange,_) = MatchBuilder(spBind,inpRange)
-#endif
+
     member x.AddTarget(tg) = 
         let n = targets.Count 
         targets.Add tg

@@ -773,9 +773,6 @@ type FSharpSourceTokenizer(defineConstants : string list, filename : string opti
     let lexArgsLightOn = mkLexargs(filename,defineConstants,LightSyntaxStatus(true,false),lexResourceManager, ref [],DiscardErrorsLogger) 
     let lexArgsLightOff = mkLexargs(filename,defineConstants,LightSyntaxStatus(false,false),lexResourceManager, ref [],DiscardErrorsLogger) 
     
-#if FABLE_COMPILER
-    new (defineConstants, filename, _) = FSharpSourceTokenizer(defineConstants, filename)
-#endif
     member this.CreateLineTokenizer(lineText: string) = 
         let lexbuf = UnicodeLexing.StringAsLexbuf lineText
         FSharpLineTokenizer(lexbuf, Some lineText.Length, filename, lexArgsLightOn, lexArgsLightOff)

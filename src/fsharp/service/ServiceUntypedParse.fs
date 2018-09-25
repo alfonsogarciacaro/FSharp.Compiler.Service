@@ -92,9 +92,6 @@ type CompletionContext =
 [<Sealed>]
 type FSharpParseFileResults(errors: FSharpErrorInfo[], input: Ast.ParsedInput option, parseHadErrors: bool, dependencyFiles: string[]) = 
 
-#if FABLE_COMPILER
-    new (errors, input, parseHadErrors, dependencyFiles, _) = FSharpParseFileResults(errors, input, parseHadErrors, dependencyFiles)
-#endif
     member scope.Errors = errors
 
     member scope.ParseHadErrors = parseHadErrors

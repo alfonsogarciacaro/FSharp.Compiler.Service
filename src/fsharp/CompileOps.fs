@@ -614,6 +614,18 @@ let getErrorString key = SR.GetString key
 
 let (|InvalidArgument|_|) (exn:exn) = match exn with :? ArgumentException as e -> Some e.Message | _ -> None
 
+#if FABLE_COMPILER
+type StringBuilder() =
+    let buf = System.Text.StringBuilder()
+    member x.Append(s: string) = buf.Append(s) |> ignore; x
+    override x.ToString() = buf.ToString()
+
+module Printf =
+    let bprintf (sb: StringBuilder) =
+        let f (s:string) = sb.Append(s) |> ignore
+        Printf.kprintf f
+#endif
+
 let OutputPhasedErrorR (os:StringBuilder) (err:PhasedDiagnostic) =
 
     let rec OutputExceptionR (os:StringBuilder) error = 
@@ -1342,7 +1354,7 @@ let OutputPhasedErrorR (os:StringBuilder) (err:PhasedDiagnostic) =
           os.Append(LetRecUnsound1E().Format v.DisplayName) |> ignore
 
       | LetRecUnsound (_, path, _) -> 
-          let bos = new System.Text.StringBuilder()
+          let bos = new StringBuilder()
           (path.Tail @ [path.Head]) |> List.iter (fun (v:ValRef) -> bos.Append(LetRecUnsoundInnerE().Format v.DisplayName) |> ignore) 
           os.Append(LetRecUnsound2E().Format (List.head path).DisplayName (bos.ToString())) |> ignore
 
@@ -1599,7 +1611,7 @@ let OutputPhasedErrorR (os:StringBuilder) (err:PhasedDiagnostic) =
 
 // remove any newlines and tabs 
 let OutputPhasedDiagnostic (os:System.Text.StringBuilder) (err:PhasedDiagnostic) (flattenErrors:bool) = 
-    let buf = new System.Text.StringBuilder()
+    let buf = new StringBuilder()
 
     OutputPhasedErrorR buf err
     let s = if flattenErrors then ErrorLogger.NormalizeErrorString (buf.ToString()) else buf.ToString()

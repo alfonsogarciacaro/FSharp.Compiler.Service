@@ -58,9 +58,6 @@ type AssemblyLoader =
 [<Sealed>]
 type ImportMap(g:TcGlobals,assemblyLoader:AssemblyLoader) =
     let typeRefToTyconRefCache = ConcurrentDictionary<ILTypeRef,TyconRef>()
-#if FABLE_COMPILER
-    new (g,assemblyLoader,_) = ImportMap(g,assemblyLoader)
-#endif
     member this.g = g
     member this.assemblyLoader = assemblyLoader
     member this.ILTypeRefToTyconRefCache = typeRefToTyconRefCache

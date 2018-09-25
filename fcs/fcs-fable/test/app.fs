@@ -10,17 +10,22 @@ let metadataPath =
     else "/temp/repl/metadata2/" // dotnet core 2.0 binaries
 
 #if !DOTNET_FILE_SYSTEM
+open Fable.Core
 
-let readFileSync: System.Func<string, byte[]> = Fable.Core.JsInterop.import "readFileSync" "fs"
-let readTextSync: System.Func<string, string, string> = Fable.Core.JsInterop.import "readFileSync" "fs"
+let readFileSync: System.Func<string, byte[]> = JsInterop.import "readFileSync" "fs"
+let readTextSync: System.Func<string, string, string> = JsInterop.import "readFileSync" "fs"
+let writeTextSync: System.Action<string, string> = JsInterop.import "writeFileSync" "fs"
 
 let readAllBytes = fun (fileName:string) -> readFileSync.Invoke (metadataPath + fileName)
 let readAllText = fun (filePath:string) -> readTextSync.Invoke (filePath, "utf8")
+let writeAllText (filePath:string) (text:string) = writeTextSync.Invoke (filePath, text)
 
 #else // DOTNET_FILE_SYSTEM
+open System.IO
 
-let readAllBytes = fun (fileName:string) -> System.IO.File.ReadAllBytes (metadataPath + fileName)
-let readAllText = fun (filePath:string) -> System.IO.File.ReadAllText (filePath, System.Text.Encoding.UTF8)
+let readAllBytes = fun (fileName:string) -> File.ReadAllBytes (metadataPath + fileName)
+let readAllText = fun (filePath:string) -> File.ReadAllText (filePath, System.Text.Encoding.UTF8)
+let writeAllText (filePath:string) (text:string) = File.WriteAllText (filePath, text)
 
 #endif
 
@@ -49,12 +54,20 @@ let main argv =
     //printfn "projectResults Contents: %A" projectResults.AssemblyContents
 
     printfn "Typed AST (unoptimized):"
-    projectResults.AssemblyContents.ImplementationFiles
-    |> Seq.iter (fun file -> AstPrint.printFSharpDecls "" file.Declarations |> Seq.iter (printfn "%s"))
+    let unoptimizedDecls = 
+        projectResults.AssemblyContents.ImplementationFiles
+        |> Seq.collect (fun file -> AstPrint.printFSharpDecls "" file.Declarations)
+        |> String.concat "\n"
+    unoptimizedDecls |> printfn "%s"
+    //writeAllText (fileName + ".unoptimized.ast.txt") unoptimizedDecls
 
     printfn "Typed AST (optimized):"
-    projectResults.GetOptimizedAssemblyContents().ImplementationFiles
-    |> Seq.iter (fun file -> AstPrint.printFSharpDecls "" file.Declarations |> Seq.iter (printfn "%s"))
+    let optimizedDecls = 
+        projectResults.GetOptimizedAssemblyContents().ImplementationFiles
+        |> Seq.collect (fun file -> AstPrint.printFSharpDecls "" file.Declarations)
+        |> String.concat "\n"
+    optimizedDecls |> printfn "%s"
+    //writeAllText (fileName + ".optimized.ast.txt") optimizedDecls
 
     let inputLines = source.Split('\n')
 

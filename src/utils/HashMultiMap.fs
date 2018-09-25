@@ -14,9 +14,8 @@ type internal HashMultiMap<'Key,'Value>(n: int, hasheq: IEqualityComparer<'Key>)
     let firstEntries = Dictionary<_,_>(n,hasheq)
 
     let rest = Dictionary<_,_>(3,hasheq)
-#if FABLE_COMPILER
-    new (n, hasheq, _) = HashMultiMap<'Key,'Value>(n, hasheq)
-#else
+
+#if !FABLE_COMPILER
     new (hasheq : IEqualityComparer<'Key>) = HashMultiMap<'Key,'Value>(11, hasheq)
 
     new (seq : seq<'Key * 'Value>, hasheq : IEqualityComparer<'Key>) as x = 

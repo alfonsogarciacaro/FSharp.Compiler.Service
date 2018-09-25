@@ -39,9 +39,6 @@ type NameResolver(g:TcGlobals,
                   amap: Import.ImportMap, 
                   infoReader: InfoReader, 
                   instantiationGenerator: (range -> Typars -> TypeInst)) =
-#if FABLE_COMPILER
-    new (g,amap,infoReader,instantiationGenerator,_) = NameResolver(g,amap,infoReader,instantiationGenerator)
-#endif
     /// Used to transform typars into new inference typars 
     // instantiationGenerator is a function to help us create the
     // type parameters by copying them from type parameter specifications read
@@ -1566,9 +1563,6 @@ type TcResultsSinkImpl(g, ?source: string) =
                 { Source = source 
                   LineStartPositions = positions })
 
-#if FABLE_COMPILER
-    new (g, source, _) = TcResultsSinkImpl(g, source)
-#endif
     member this.GetResolutions() = 
         TcResolutions(capturedEnvs, capturedExprTypings, capturedNameResolutions, capturedMethodGroupResolutions)
 

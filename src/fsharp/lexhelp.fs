@@ -31,9 +31,6 @@ let stdinMockFilename = "stdin"
 [<Sealed>]
 type LightSyntaxStatus(initial:bool,warn:bool) = 
     let mutable status = None
-#if FABLE_COMPILER
-    new (initial,warn, _) = LightSyntaxStatus(initial,warn)
-#endif
     member x.Status 
        with get() = match status with None -> initial | Some v -> v
        and  set v = status <- Some(v)
@@ -45,9 +42,6 @@ type LightSyntaxStatus(initial:bool,warn:bool) =
 [<Sealed>]
 type LexResourceManager() =
     let strings = new System.Collections.Generic.Dictionary<string, Parser.token>(1024)
-#if FABLE_COMPILER
-    new (_) = LexResourceManager()
-#endif
     member x.InternIdentifierToken(s) = 
 #if FABLE_COMPILER
         let ok, res = strings.TryGetValue(s)

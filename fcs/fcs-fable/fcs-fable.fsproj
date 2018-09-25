@@ -20,7 +20,6 @@
 
   <ItemGroup>
     <Compile Include="fsstrings.fs"/>
-    <Compile Include="unicode.fs"/>
     <Compile Include="adapters.fs"/>
     <Compile Include="codegen/FSComp.fs"/>
     <Compile Include="codegen/FSIstrings.fs"/>
