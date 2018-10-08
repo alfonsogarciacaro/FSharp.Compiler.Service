@@ -15,6 +15,7 @@ open Microsoft.FSharp.Compiler.AbstractIL.IL
 open Microsoft.FSharp.Compiler.AbstractIL.Internal.Library
 open Microsoft.FSharp.Compiler.AbstractIL.ILBinaryReader
 open Microsoft.FSharp.Compiler 
+open Microsoft.FSharp.Compiler.AccessibilityLogic
 open Microsoft.FSharp.Compiler.Ast
 #if !FABLE_COMPILER
 open Microsoft.FSharp.Compiler.Driver
@@ -86,6 +87,25 @@ type public SemanticClassificationType =
 #if FABLE_COMPILER
 [<Sealed>]
 type internal TypeCheckInfo =
+    internal new :
+        tcConfig: TcConfig *
+        tcGlobals: TcGlobals *
+        ccuSigForFile: ModuleOrNamespaceType *
+        thisCcu: CcuThunk *
+        tcImports: TcImports *
+        tcAccessRights: AccessorDomain *
+        projectFileName: string *
+        mainInputFileName: string *
+        sResolutions: TcResolutions *
+        sSymbolUses: TcSymbolUses *
+        sFallback: NameResolutionEnv *
+        loadClosure : LoadClosure option *
+        reactorOps : IReactorOperations *
+        checkAlive : (unit -> bool) *
+        textSnapshotInfo: obj option *
+        implFileOpt: TypedImplFile option *
+        openDeclarations: OpenDeclaration[]
+            -> TypeCheckInfo
     member ScopeResolutions: TcResolutions
     member ScopeSymbolUses: TcSymbolUses
     member TcGlobals: TcGlobals

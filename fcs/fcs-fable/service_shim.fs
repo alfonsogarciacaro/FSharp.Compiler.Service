@@ -15,6 +15,7 @@ open Microsoft.FSharp.Control
 open System
 open System.Text
 open System.Threading
+open System.Collections.Concurrent
 open System.Collections.Generic
 
 open Microsoft.FSharp.Compiler
@@ -50,16 +51,17 @@ open Microsoft.FSharp.Compiler.TypeChecker
 // InteractiveChecker
 //-------------------------------------------------------------------------
 
-type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcState, ctok, reactorOps) =
+type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState, ctok, reactorOps, moduleNamesDict) =
+    let userOpName = "Unknown"
 
-    static member Create(references: string[], readAllBytes: string -> byte[]) =
+    static member Create(references: string[], readAllBytes: string -> byte[], defines: string[]) =
 
         let GetSignatureData ((filename:string), ilScopeRef, (ilModule:ILModuleDef option), (bytes:byte[])) = 
             TastPickle.unpickleObjWithDanglingCcus filename ilScopeRef ilModule TastPickle.unpickleCcuInfo bytes
         let GetOptimizationData ((filename:string), ilScopeRef, (ilModule:ILModuleDef option), (bytes:byte[])) = 
             TastPickle.unpickleObjWithDanglingCcus filename ilScopeRef ilModule Optimizer.u_CcuOptimizationInfo bytes
 
-        let tcConfig = TcConfig (optimize = true)
+        let tcConfig = TcConfig (optimize = true, defines = Array.toList defines)
         let tcImports = TcImports ()
         let ilGlobals = IL.EcmaMscorlibILGlobals
 
@@ -142,7 +144,9 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcState, ctok,
             let fileName = ilModule.Name
             let ilScopeRef = ILScopeRef.Assembly (mkSimpleAssRef ccuName)
             let invalidateCcu = new Event<_>()
-            let ccu = Import.ImportILAssembly(tcImports.GetImportMap,m,auxModuleLoader,ilScopeRef,tcConfig.implicitIncludeDir,Some fileName,ilModule,invalidateCcu.Publish)
+            let ccu = Import.ImportILAssembly(
+                        tcImports.GetImportMap, m, auxModuleLoader, ilScopeRef,
+                        tcConfig.implicitIncludeDir, Some fileName, ilModule, invalidateCcu.Publish)
             let ccuInfo = mkCcuInfo ilGlobals ilScopeRef ilModule ccu
             ccuInfo, None
 
@@ -220,7 +224,10 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcState, ctok,
 
         // search over all imported CCUs for each cached type
         let ccuHasType (ccu: CcuThunk) (nsname: string list) (tname: string) =
-            match (Some ccu.Contents, nsname) ||> List.fold (fun entityOpt n -> match entityOpt with None -> None | Some entity -> entity.ModuleOrNamespaceType.AllEntitiesByCompiledAndLogicalMangledNames.TryFind n) with
+            match (Some ccu.Contents, nsname) ||> List.fold (fun entityOpt n ->
+                match entityOpt with
+                | None -> None
+                | Some entity -> entity.ModuleOrNamespaceType.AllEntitiesByCompiledAndLogicalMangledNames.TryFind n) with
             | Some ns ->
                     match Map.tryFind tname ns.ModuleOrNamespaceType.TypesByMangledName with
                     | Some _ -> true
@@ -256,8 +263,8 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcState, ctok,
 
         let assemblyName = "Project"
         let ccus = ccuInfos |> List.map (fun x -> x.FSharpViewOfMetadata, x.AssemblyAutoOpenAttributes, x.AssemblyInternalsVisibleToAttributes)
-        let tcEnv = CreateInitialTcEnv (tcGlobals, amap, rng, assemblyName, ccus)
-        let tcState = GetInitialTcState (rangeStartup, assemblyName, tcConfig, tcGlobals, tcImports, niceNameGen, tcEnv)
+        let tcInitialEnv = CreateInitialTcEnv (tcGlobals, amap, rng, assemblyName, ccus)
+        let tcInitialState = GetInitialTcState (rangeStartup, assemblyName, tcConfig, tcGlobals, tcImports, niceNameGen, tcInitialEnv)
         let ctok = CompilationThreadToken()
 
         let reactorOps = 
@@ -266,44 +273,118 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcState, ctok,
                     async.Return (Cancellable.runWithoutCancellation (op ctok))
                 member __.EnqueueOp (userOpName, opName, opArg, op) = (op ctok) }
 
-        InteractiveChecker (tcConfig, tcGlobals, tcImports, tcState, ctok, reactorOps)
+        // for de-duplicating module names
+        let moduleNamesDict = ConcurrentDictionary<string, Set<string>>()
 
-    member x.ParseScript (mainInputFileName, source) =
-        let userOpName = "Unknown"
-        let filename = mainInputFileName
-        // Note: projectSourceFiles is only used to compute isLastCompiland, and is ignored if Build.IsScript(mainInputFileName) is true (which it is in this case).
-        let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, [| filename |], false)
-        let parseErrors, inputOpt, anyErrors = Parser.parseFile (source, filename, parsingOptions, userOpName)
+        InteractiveChecker (tcConfig, tcGlobals, tcImports, tcInitialState, ctok, reactorOps, moduleNamesDict)
+
+    member private x.MakeProjectResults (projectFileName: string, parseResults: FSharpParseFileResults[], tcState: TcState, errors: FSharpErrorInfo[],
+                                         symbolUses: TcSymbolUses list, topAttrsOpt: TopAttribs option, tcImplFilesOpt: TypedImplFile list option) =
+        let assemblyRef = mkSimpleAssRef "stdin"
+        let assemblyDataOpt = None
+        let access = tcState.TcEnvFromImpls.AccessRights
+        let dependencyFiles = parseResults |> Seq.map (fun x -> x.DependencyFiles) |> Array.concat
+        let details = (tcGlobals, tcImports, tcState.Ccu, tcState.CcuSig, symbolUses, topAttrsOpt, assemblyDataOpt, assemblyRef, access, tcImplFilesOpt, dependencyFiles)
+        FSharpCheckProjectResults (projectFileName, Some tcConfig, true, errors, Some details)
+
+    member private x.ParseScript (filename: string, source: string) =
+        let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, [| filename |], true)
+        let parseErrors, parseTreeOpt, anyErrors = Parser.parseFile (source, filename, parsingOptions, userOpName)
+        let parseTreeOpt = parseTreeOpt |> Option.map (DeduplicateParsedInputModuleName moduleNamesDict)
         let dependencyFiles = [||] // interactions have no dependencies
-        let parseResults = FSharpParseFileResults(parseErrors, inputOpt, parseHadErrors = anyErrors, dependencyFiles = dependencyFiles)
-        parseResults
+        FSharpParseFileResults (parseErrors, parseTreeOpt, anyErrors, dependencyFiles)
 
-    member x.ParseAndCheckScript (mainInputFileName, source) =
-        let parseResults = x.ParseScript (mainInputFileName, source)
+    member x.ParseAndCheckScript (projectFileName, filename: string, source: string) =
+        let parseResults = x.ParseScript (filename, source)
         let loadClosure = None
         let backgroundErrors = [||]
-        let tcResults =
-            Parser.CheckOneFile(parseResults,
-                                source,
-                                mainInputFileName,
-                                "project",
-                                tcConfig,
-                                tcGlobals,
-                                tcImports,
-                                tcState,
-                                loadClosure,
-                                backgroundErrors,
-                                reactorOps,
-                                (fun () -> true),
-                                None,
-                                "")
-
-        match tcResults with 
+        let checkAlive = fun () -> true
+        let textSnapshotInfo = None
+        let tcState = tcInitialState
+        let tcResults = Parser.CheckOneFile(
+                            parseResults, source, filename, projectFileName, tcConfig, tcGlobals, tcImports, tcState,
+                            loadClosure, backgroundErrors, reactorOps, checkAlive, textSnapshotInfo, userOpName)
+        match tcResults with
         | tcErrors, Parser.TypeCheckAborted.No scope ->
-            let errors = [|  yield! parseResults.Errors; yield! tcErrors |]
-            let tcImplFiles = match scope.ImplementationFile with Some x -> Some [x] | None -> None
-            let typeCheckResults = FSharpCheckFileResults (mainInputFileName, errors, Some scope, parseResults.DependencyFiles, None, reactorOps, true)   
-            let projectResults = FSharpCheckProjectResults (mainInputFileName, Some tcConfig, true, errors, Some(tcGlobals, tcImports, scope.ThisCcu, scope.CcuSigForFile, [scope.ScopeSymbolUses], None, None, mkSimpleAssRef "stdin", tcState.TcEnvFromImpls.AccessRights, tcImplFiles, parseResults.DependencyFiles))
+            let errors = Array.append parseResults.Errors tcErrors
+            let tcImplFilesOpt = match scope.ImplementationFile with Some x -> Some [x] | None -> None
+            let typeCheckResults = FSharpCheckFileResults (filename, errors, Some scope, parseResults.DependencyFiles, None, reactorOps, true)
+            let symbolUses = [scope.ScopeSymbolUses]
+            let projectResults = x.MakeProjectResults (projectFileName, [|parseResults|], tcState, errors, symbolUses, None, tcImplFilesOpt)
             parseResults, typeCheckResults, projectResults
-        | _ -> 
+        | _ ->
             failwith "unexpected aborted"
+
+    member x.ParseAndCheckProject (projectFileName, fileNames: string[], sources: string[]) =
+        use errorScope = new ErrorScope()
+        let sink = TcResultsSinkImpl(tcGlobals)
+
+        let typeCheckOneInput (ctok, checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt) tcSink tcState input =
+            //// 'use' ensures that the warning handler is restored at the end
+            //use unwindEL = PushErrorLoggerPhaseUntilUnwind(fun oldLogger ->
+            //    GetErrorLoggerFilteringByScopedPragmas(false, GetScopedPragmasForInput(input), oldLogger) )
+            //use unwindBP = PushThreadBuildPhaseUntilUnwind BuildPhase.TypeCheck
+            TypeCheckOneInputEventually (checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt, tcSink, tcState, input) 
+                |> Eventually.force ctok
+
+        let makeTcResult (tcState: TcState) (parseRes: FSharpParseFileResults, (tcEnvAtEnd: TcEnv, _topAttrs, implFile, ccuSigForFile)) =
+            let filename = parseRes.FileName
+            let loadClosure = None
+            let checkAlive = fun () -> true
+            let textSnapshotInfo = None
+            let tcErrors = errorScope.Diagnostics |> List.filter (fun e -> e.FileName = filename) |> List.toArray
+            let errors = Array.append parseRes.Errors tcErrors
+            let scope = TypeCheckInfo(tcConfig, tcGlobals, ccuSigForFile, tcState.Ccu, tcImports, tcEnvAtEnd.AccessRights,
+                                    projectFileName, filename, sink.GetResolutions(), sink.GetSymbolUses(), tcEnvAtEnd.NameEnv,
+                                    loadClosure, reactorOps, checkAlive, textSnapshotInfo, implFile, sink.GetOpenDeclarations())
+            FSharpCheckFileResults (filename, errors, Some scope, parseRes.DependencyFiles, None, reactorOps, true)
+
+        // parse files
+        let parseScript (filename, source) = x.ParseScript(filename, source)
+        let parseResults = Array.zip fileNames sources |> Array.map parseScript
+        let parseHadErrors = parseResults |> Array.exists (fun p -> p.ParseHadErrors)
+        let inputs = parseResults |> Array.choose (fun p -> p.ParseTree) |> Array.toList
+ 
+        // type check files
+        let checkForErrors() = parseHadErrors
+        let prefixPathOpt = None
+        let tcSink = TcResultsSink.WithSink sink
+        let tcOneInput = typeCheckOneInput (ctok, checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt) tcSink
+        let tcResults, tcState = (tcInitialState, inputs) ||> List.mapFold tcOneInput
+        let (_tcEnvAtEnd, topAttrs, implFiles, _ccuSigsForFiles), tcState = TypeCheckMultipleInputsFinish(tcResults, tcState)
+        let tcState, tcImplFiles = TypeCheckClosedInputSetFinish (implFiles, tcState)
+
+        let typeCheckResults = tcResults |> List.toArray |> Array.zip parseResults |> Array.map (makeTcResult tcState)
+
+        // make project results
+        let parseErrors = parseResults |> Array.collect (fun p -> p.Errors)
+        let tcErrors = errorScope.Diagnostics |> List.toArray
+        let errors = Array.append parseErrors tcErrors
+        let symbolUses = [sink.GetSymbolUses()]
+        let projectResults = x.MakeProjectResults (projectFileName, parseResults, tcState, errors, symbolUses, Some topAttrs, Some tcImplFiles)
+
+        parseResults, typeCheckResults, projectResults
+
+    member x.ParseAndCheckProject_simple (projectFileName, fileNames: string[], sources: string[]) =
+        use errorScope = new ErrorScope()
+
+        // parse files
+        let parseScript (filename, source) = x.ParseScript(filename, source)
+        let parseResults = Array.zip fileNames sources |> Array.map parseScript
+        let parseHadErrors = parseResults |> Array.exists (fun p -> p.ParseHadErrors)
+        let inputs = parseResults |> Array.choose (fun p -> p.ParseTree) |> Array.toList
+
+        // type check files
+        let checkForErrors() = parseHadErrors
+        let prefixPathOpt = None
+        let tcState, topAttrs, tcImplFiles, _tcEnvAtEnd =
+            TypeCheckClosedInputSet (ctok, checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt, tcInitialState, inputs)
+
+        // make project results
+        let parseErrors = parseResults |> Array.collect (fun p -> p.Errors)
+        let tcErrors = errorScope.Diagnostics |> List.toArray
+        let errors = Array.append parseErrors tcErrors
+        let symbolUses = [] //todo:
+        let projectResults = x.MakeProjectResults (projectFileName, parseResults, tcState, errors, symbolUses, Some topAttrs, Some tcImplFiles)
+
+        projectResults
