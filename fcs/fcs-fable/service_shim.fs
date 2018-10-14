@@ -287,15 +287,15 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         let details = (tcGlobals, tcImports, tcState.Ccu, tcState.CcuSig, symbolUses, topAttrsOpt, assemblyDataOpt, assemblyRef, access, tcImplFilesOpt, dependencyFiles)
         FSharpCheckProjectResults (projectFileName, Some tcConfig, true, errors, Some details)
 
-    member private x.ParseScript (filename: string, source: string) =
-        let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, [| filename |], true)
+    member private x.ParseScript (filename: string, source: string, parsingOptions: FSharpParsingOptions) =
         let parseErrors, parseTreeOpt, anyErrors = Parser.parseFile (source, filename, parsingOptions, userOpName)
         let parseTreeOpt = parseTreeOpt |> Option.map (DeduplicateParsedInputModuleName moduleNamesDict)
         let dependencyFiles = [||] // interactions have no dependencies
         FSharpParseFileResults (parseErrors, parseTreeOpt, anyErrors, dependencyFiles)
 
     member x.ParseAndCheckScript (projectFileName, filename: string, source: string) =
-        let parseResults = x.ParseScript (filename, source)
+        let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, [| filename |], true)
+        let parseResults = x.ParseScript (filename, source, parsingOptions)
         let loadClosure = None
         let backgroundErrors = [||]
         let checkAlive = fun () -> true
@@ -340,7 +340,8 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
             FSharpCheckFileResults (filename, errors, Some scope, parseRes.DependencyFiles, None, reactorOps, true)
 
         // parse files
-        let parseScript (filename, source) = x.ParseScript(filename, source)
+        let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, fileNames, true)
+        let parseScript (filename, source) = x.ParseScript(filename, source, parsingOptions)
         let parseResults = Array.zip fileNames sources |> Array.map parseScript
         let parseHadErrors = parseResults |> Array.exists (fun p -> p.ParseHadErrors)
         let inputs = parseResults |> Array.choose (fun p -> p.ParseTree) |> Array.toList
@@ -369,7 +370,8 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         use errorScope = new ErrorScope()
 
         // parse files
-        let parseScript (filename, source) = x.ParseScript(filename, source)
+        let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, fileNames, true)
+        let parseScript (filename, source) = x.ParseScript(filename, source, parsingOptions)
         let parseResults = Array.zip fileNames sources |> Array.map parseScript
         let parseHadErrors = parseResults |> Array.exists (fun p -> p.ParseHadErrors)
         let inputs = parseResults |> Array.choose (fun p -> p.ParseTree) |> Array.toList

@@ -78,7 +78,7 @@ module System =
                 else path.Substring(i)
 
             let GetInvalidPathChars () = //TODO: proper xplat implementation
-                Seq.toArray "<>:\"|\\/?*\b\t"
+                Seq.toArray "<>:\"|?*\b\t"
             
             let GetInvalidFileNameChars () = //TODO: proper xplat implementation
                 Seq.toArray "<>:\"|\\/?*\b\t"
