@@ -124,7 +124,11 @@ let ReportStatistics (oc:TextWriter) = reports oc
 
 let NewCounter nm =
     let count = ref 0
+#if FABLE_COMPILER
+    ignore nm
+#else
     AddReport (fun oc -> if !count <> 0 then oc.WriteLine (string !count + " " + nm))
+#endif
     (fun () -> incr count)
 
 let CountClosure = NewCounter "closures"
@@ -7224,6 +7228,8 @@ type ExecutionContext =
       LookupMethodRef : (ILMethodRef -> MethodInfo)
       LookupTypeRef : (ILTypeRef -> Type)
       LookupType : (ILType -> Type) }
+
+#if !FABLE_COMPILER
 
 // A helper to generate a default value for any System.Type. I couldn't find a System.Reflection
 // method to do this.
