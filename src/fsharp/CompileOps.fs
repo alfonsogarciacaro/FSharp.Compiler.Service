@@ -5422,7 +5422,7 @@ type TcConfig (optimize: bool, defines: string list) =
     member x.emitDebugInfoInQuotations = false
     member x.errorSeverityOptions = FSharpErrorSeverityOptions.Default
     member x.light = Some true
-    member x.target = CompilerTarget.WinExe
+    member x.target = CompilerTarget.Dll
     member x.extraOptimizationIterations = if optimize then 0 else 0
 #if DEBUG
     member x.showOptimizationData = false

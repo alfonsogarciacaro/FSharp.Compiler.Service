@@ -107,7 +107,13 @@ Target "CodeGen.Fable" (fun _ ->
     // Fable-specific (comment the #line directive as it is not supported)
     ["lex.fs"; "pplex.fs"; "illex.fs"; "ilpars.fs"; "pars.fs"; "pppars.fs"]
     |> Seq.map (fun fileName -> outDir + fileName)
-    |> RegexReplaceInFilesWithEncoding @"# (?=\d)" "//# " Text.Encoding.UTF8
+    |> RegexReplaceInFilesWithEncoding @"(?<!/)# (?=\d)" "//# " Text.Encoding.UTF8
+
+    // prevent stack overflows on large files (make lexer rules inline)
+    let pattern = @"(?<=and )(?!inline )([a-zA-Z]+ )+ *\(lexbuf "
+    ["lex.fs"; "pplex.fs"; "illex.fs"]
+    |> Seq.map (fun fileName -> outDir + fileName)
+    |> RegexReplaceInFilesWithEncoding pattern @"inline $0" Text.Encoding.UTF8
 )
 
 Target "GenerateDocsEn" (fun _ ->
