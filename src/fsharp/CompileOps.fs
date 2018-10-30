@@ -5408,8 +5408,8 @@ type LoadClosure =
 
 // cut-down version of TcConfig
 type TcConfig (optimize: bool, defines: string list) =
-#if TODO_REWORK_ASSEMBLY_LOAD
-    member x.primaryAssembly = PrimaryAssembly.DotNetCore
+#if COMPILER_SERVICE_ASSUMES_DOTNETCORE_COMPILATION
+    member x.primaryAssembly = PrimaryAssembly.System_Runtime
 #else
     member x.primaryAssembly = PrimaryAssembly.Mscorlib
 #endif
@@ -5422,7 +5422,7 @@ type TcConfig (optimize: bool, defines: string list) =
     member x.emitDebugInfoInQuotations = false
     member x.errorSeverityOptions = FSharpErrorSeverityOptions.Default
     member x.light = Some true
-    member x.target = CompilerTarget.Dll
+    member x.target = CompilerTarget.WinExe
     member x.extraOptimizationIterations = if optimize then 0 else 0
 #if DEBUG
     member x.showOptimizationData = false
