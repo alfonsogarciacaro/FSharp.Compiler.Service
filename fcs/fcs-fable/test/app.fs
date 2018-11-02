@@ -34,13 +34,15 @@ let writeAllText (filePath:string) (text:string) = File.WriteAllText (filePath, 
 let main argv =
     printfn "Parsing begins..."
 
-    let checker = InteractiveChecker.Create(references, readAllBytes)
+    let defines = [||]
+    let checker = InteractiveChecker.Create(references, readAllBytes, defines)
 
+    let projectFileName = "project"
     let fileName = "test_script.fsx"
     let source = readAllText fileName
 
-    // let parseResults = checker.ParseScript(fileName,source)
-    let parseResults, typeCheckResults, projectResults = checker.ParseAndCheckScript(fileName, source)
+    //let parseResults, typeCheckResults, projectResults = checker.ParseAndCheckProject(projectFileName, [|fileName|], [|source|])
+    let parseResults, typeCheckResults, projectResults = checker.ParseAndCheckScript(projectFileName, fileName, source)
     
     printfn "parseResults.ParseHadErrors: %A" parseResults.ParseHadErrors
     printfn "parseResults.Errors: %A" parseResults.Errors

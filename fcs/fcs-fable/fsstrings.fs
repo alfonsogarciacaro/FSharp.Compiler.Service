@@ -774,19 +774,19 @@ let resources =
         "This expression is a function value, i.e. is missing arguments. Its type is {0}."
       );
       ( "UnitTypeExpected",
-        "The result of this expression is implicitly ignored. Consider using 'ignore' to discard this value explicitly, e.g. 'expr |> ignore', or 'let' to bind the result to a name, e.g. 'let result = expr'."
+        "The result of this expression has type '{0}' and is implicitly ignored. Consider using 'ignore' to discard this value explicitly, e.g. 'expr |> ignore', or 'let' to bind the result to a name, e.g. 'let result = expr'."
       );
       ( "UnitTypeExpectedWithEquality",
-        "The result of this equality expression is implicitly discarded. Consider using 'let' to bind the result to a name, e.g. 'let result = expression'."
+        "The result of this equality expression has type '{0}' and is implicitly discarded. Consider using 'let' to bind the result to a name, e.g. 'let result = expression'."
       );
       ( "UnitTypeExpectedWithPossiblePropertySetter",
-        "The result of this equality expression is implicitly discarded. Consider using 'let' to bind the result to a name, e.g. 'let result = expression'. If you intended to set a value to a property, then use the '<-' operator e.g. '{0}.{1} <- expression'."
+        "The result of this equality expression has type '{0}' and is implicitly discarded. Consider using 'let' to bind the result to a name, e.g. 'let result = expression'. If you intended to set a value to a property, then use the '<-' operator e.g. '{1}.{2} <- expression'."
       );
       ( "UnitTypeExpectedWithPossibleAssignment",
-        "The result of this equality expression is implicitly discarded. Consider using 'let' to bind the result to a name, e.g. 'let result = expression'. If you intended to mutate a value, then mark the value 'mutable' and use the '<-' operator e.g. '{0} <- expression'."
+        "The result of this equality expression has type '{0}' and is implicitly discarded. Consider using 'let' to bind the result to a name, e.g. 'let result = expression'. If you intended to mutate a value, then mark the value 'mutable' and use the '<-' operator e.g. '{1} <- expression'."
       );
       ( "UnitTypeExpectedWithPossibleAssignmentToMutable",
-        "The result of this equality expression is implicitly discarded. Consider using 'let' to bind the result to a name, e.g. 'let result = expression'. If you intended to mutate a value, then use the '<-' operator e.g. '{0} <- expression'."
+        "The result of this equality expression has type '{0}' and is implicitly discarded. Consider using 'let' to bind the result to a name, e.g. 'let result = expression'. If you intended to mutate a value, then use the '<-' operator e.g. '{1} <- expression'."
       );
       ( "RecursiveUseCheckedAtRuntime",
         "This recursive use will be checked for initialization-soundness at runtime. This warning is usually harmless, and may be suppressed by using '#nowarn \"21\"' or '--nowarn:21'."

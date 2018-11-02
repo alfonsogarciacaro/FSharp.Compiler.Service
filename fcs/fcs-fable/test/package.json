@@ -13,10 +13,10 @@
     "start": "node out/app"
   },
   "devDependencies": {
-    "babel-core": "^6.26.3",
+    "@babel/core": "^7.1.2",
     "babel-preset-env": "^1.7.0",
-    "fable-splitter": "2.0.0-beta-002",
-    "rollup": "^0.66.2",
-    "rollup-plugin-fable": "2.0.0-beta-001"
+    "fable-splitter": "^2.0.2",
+    "rollup": "^0.66.6",
+    "rollup-plugin-fable": "^2.0.0"
   }
 }
