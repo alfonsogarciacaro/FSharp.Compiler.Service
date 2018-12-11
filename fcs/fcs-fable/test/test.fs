@@ -1,6 +1,8 @@
 module App
+
 open Microsoft.FSharp.Compiler
 open Microsoft.FSharp.Compiler.SourceCodeServices
+open Platform
 
 let use_net45_meta = false
 let references = Metadata.references use_net45_meta
@@ -9,33 +11,12 @@ let metadataPath =
     then "/temp/repl/metadata/"  // dotnet 4.5 binaries
     else "/temp/repl/metadata2/" // dotnet core 2.0 binaries
 
-#if !DOTNET_FILE_SYSTEM
-open Fable.Core
-
-let readFileSync: System.Func<string, byte[]> = JsInterop.import "readFileSync" "fs"
-let readTextSync: System.Func<string, string, string> = JsInterop.import "readFileSync" "fs"
-let writeTextSync: System.Action<string, string> = JsInterop.import "writeFileSync" "fs"
-
-let readAllBytes = fun (fileName:string) -> readFileSync.Invoke (metadataPath + fileName)
-let readAllText = fun (filePath:string) -> readTextSync.Invoke (filePath, "utf8")
-let writeAllText (filePath:string) (text:string) = writeTextSync.Invoke (filePath, text)
-
-#else // DOTNET_FILE_SYSTEM
-open System.IO
-
-let readAllBytes = fun (fileName:string) -> File.ReadAllBytes (metadataPath + fileName)
-let readAllText = fun (filePath:string) -> File.ReadAllText (filePath, System.Text.Encoding.UTF8)
-let writeAllText (filePath:string) (text:string) = File.WriteAllText (filePath, text)
-
-#endif
-
-
 [<EntryPoint>]
 let main argv =
     printfn "Parsing begins..."
 
     let defines = [||]
-    let checker = InteractiveChecker.Create(references, readAllBytes, defines)
+    let checker = InteractiveChecker.Create(references, readAllBytes metadataPath, defines)
 
     let projectFileName = "project"
     let fileName = "test_script.fsx"

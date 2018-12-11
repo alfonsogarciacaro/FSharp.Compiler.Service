@@ -51,7 +51,9 @@ open Microsoft.FSharp.Compiler.TypeChecker
 // InteractiveChecker
 //-------------------------------------------------------------------------
 
-type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState, ctok, reactorOps, moduleNamesDict) =
+type internal TcResult = TcEnv * TopAttribs * TypedImplFile option * ModuleOrNamespaceType
+
+type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState, ctok, reactorOps, moduleNamesDict, parseCache, checkCache) =
     let userOpName = "Unknown"
 
     static member Create(references: string[], readAllBytes: string -> byte[], defines: string[]) =
@@ -273,10 +275,13 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
                     async.Return (Cancellable.runWithoutCancellation (op ctok))
                 member __.EnqueueOp (userOpName, opName, opArg, op) = (op ctok) }
 
-        // for de-duplicating module names
+        // dictionary for de-duplicating module names
         let moduleNamesDict = ConcurrentDictionary<string, Set<string>>()
+        // parse and type check caches
+        let parseCache = ConcurrentDictionary<string * int * FSharpParsingOptions, FSharpParseFileResults>(HashIdentity.Structural)
+        let checkCache = ConcurrentDictionary<string, TcResult * TcState>(HashIdentity.Structural)
 
-        InteractiveChecker (tcConfig, tcGlobals, tcImports, tcInitialState, ctok, reactorOps, moduleNamesDict)
+        InteractiveChecker (tcConfig, tcGlobals, tcImports, tcInitialState, ctok, reactorOps, moduleNamesDict, parseCache, checkCache)
 
     member private x.MakeProjectResults (projectFileName: string, parseResults: FSharpParseFileResults[], tcState: TcState, errors: FSharpErrorInfo[],
                                          symbolUses: TcSymbolUses list, topAttrsOpt: TopAttribs option, tcImplFilesOpt: TypedImplFile list option) =
@@ -287,11 +292,39 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         let details = (tcGlobals, tcImports, tcState.Ccu, tcState.CcuSig, symbolUses, topAttrsOpt, assemblyDataOpt, assemblyRef, access, tcImplFilesOpt, dependencyFiles)
         FSharpCheckProjectResults (projectFileName, Some tcConfig, true, errors, Some details)
 
-    member private x.ParseScript (filename: string, source: string, parsingOptions: FSharpParsingOptions) =
-        let parseErrors, parseTreeOpt, anyErrors = Parser.parseFile (source, filename, parsingOptions, userOpName)
-        let parseTreeOpt = parseTreeOpt |> Option.map (DeduplicateParsedInputModuleName moduleNamesDict)
-        let dependencyFiles = [||] // interactions have no dependencies
-        FSharpParseFileResults (parseErrors, parseTreeOpt, anyErrors, dependencyFiles)
+    member private x.ClearStaleCache (fileName: string, parsingOptions: FSharpParsingOptions) =
+        let fileIndex = parsingOptions.SourceFiles |> Array.findIndex ((=) fileName)
+        let _, staleCheckKeys = parsingOptions.SourceFiles |> Array.splitAt fileIndex
+        let staleParseKeys = parseCache.Keys |> Seq.filter (fun (fname,_,_) -> fname = fileName) |> Seq.toArray
+        staleParseKeys |> Array.iter (fun key -> parseCache.Remove(key) |> ignore)
+        staleCheckKeys |> Array.iter (fun key -> checkCache.Remove(key) |> ignore)
+
+    member private x.ParseScript (fileName: string, source: string, parsingOptions: FSharpParsingOptions) =
+        let parseCacheKey = fileName, hash source, parsingOptions
+        parseCache.GetOrAdd(parseCacheKey, fun _ ->
+            x.ClearStaleCache(fileName, parsingOptions)
+            let parseErrors, parseTreeOpt, anyErrors = Parser.parseFile (source, fileName, parsingOptions, userOpName)
+            let parseTreeOpt = parseTreeOpt |> Option.map (DeduplicateParsedInputModuleName moduleNamesDict)
+            let dependencyFiles = [||] // interactions have no dependencies
+            FSharpParseFileResults (parseErrors, parseTreeOpt, anyErrors, dependencyFiles) )
+
+    member private x.TypeCheckClosedInputSet (ctok, checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt, tcState, inputs) =
+        // tcEnvAtEndOfLastFile is the environment when incrementally adding definitions
+        let fileNameOf = function
+            | ParsedInput.SigFile (ParsedSigFileInput(fileName,_,_,_,_)) -> fileName
+            | ParsedInput.ImplFile (ParsedImplFileInput(fileName,_,_,_,_,_,_)) -> fileName
+        let cachedTypeCheck tcState (input: ParsedInput) =
+            let checkCacheKey = fileNameOf input
+            checkCache.GetOrAdd(checkCacheKey, fun _ ->
+                TypeCheckOneInput (ctok, checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt) tcState input)
+        let results, tcState =  (tcState, inputs) ||> List.mapFold cachedTypeCheck
+        let (tcEnvAtEndOfLastFile, topAttrs, implFiles, _), tcState = TypeCheckMultipleInputsFinish(results, tcState)
+        let tcState, declaredImpls = TypeCheckClosedInputSetFinish (implFiles, tcState)
+        tcState, topAttrs, declaredImpls, tcEnvAtEndOfLastFile
+
+    member x.ClearCache () =
+        parseCache.Clear()
+        checkCache.Clear()
 
     member x.ParseAndCheckScript (projectFileName, filename: string, source: string) =
         let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, [| filename |], true)
@@ -380,7 +413,7 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         let checkForErrors() = parseHadErrors
         let prefixPathOpt = None
         let tcState, topAttrs, tcImplFiles, _tcEnvAtEnd =
-            TypeCheckClosedInputSet (ctok, checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt, tcInitialState, inputs)
+            x.TypeCheckClosedInputSet (ctok, checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt, tcInitialState, inputs)
 
         // make project results
         let parseErrors = parseResults |> Array.collect (fun p -> p.Errors)

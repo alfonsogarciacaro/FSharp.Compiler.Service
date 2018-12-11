@@ -3479,20 +3479,12 @@ module DebugPrint = begin
             | Const.IntPtr x      -> (x |> string)+"n"
             | Const.UIntPtr x     -> (x |> string)+"un"
             | Const.Single d      -> 
-#if FABLE_COMPILER
-                let s = string d
-#else
                 let s = d.ToString("g12", System.Globalization.CultureInfo.InvariantCulture)
-#endif
                 (if String.forall (fun c -> System.Char.IsDigit(c) || c = '-')  s 
                  then s + ".0" 
                  else s) + "f"
             | Const.Double d      -> 
-#if FABLE_COMPILER
-                let s = string d
-#else
                 let s = d.ToString("g12", System.Globalization.CultureInfo.InvariantCulture)
-#endif
                 if String.forall (fun c -> System.Char.IsDigit(c) || c = '-')  s 
                 then s + ".0" 
                 else s

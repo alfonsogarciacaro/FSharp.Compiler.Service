@@ -1,17 +1,13 @@
-const fableUtils = require("fable-utils");
+const path = require("path");
 
-const babelOptions = fableUtils.resolveBabelOptions({
-  plugins: [
-    ["transform-es2015-modules-commonjs"],
-  ],
-  // presets: [
-  //   ["env", { modules: "umd" }],
-  // ],
-  // sourceMaps: true,
-});
+const useCommonjs = process.argv.find(v => v === "--commonjs");
+console.log("Compiling to " + (useCommonjs ? "commonjs" : "ES2015 modules") + "...")
+
+const babelOptions = useCommonjs
+  ? { plugins: ["@babel/plugin-transform-modules-commonjs"] }
+  : {};
 
 const fableOptions = {
-  // plugins: [],
   define: [
     "FX_NO_CORHOST_SIGNER",
     "FX_NO_LINKEDRESOURCES",
@@ -23,11 +19,12 @@ const fableOptions = {
     "NO_EXTENSIONTYPING",
     "NO_INLINE_IL_PARSER"
   ],
+  // extra: { saveAst: "./ast" }
 };
 
 module.exports = {
-  entry: "./fcs-fable-test.fsproj",
-  outDir: "./out",
+  entry: path.join(__dirname, "./fcs-fable-test.fsproj"),
+  outDir: path.join(__dirname, "./out-test"),
   // port: 61225,
   babel: babelOptions,
   fable: fableOptions,

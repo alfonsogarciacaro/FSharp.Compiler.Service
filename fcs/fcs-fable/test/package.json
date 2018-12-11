@@ -6,17 +6,15 @@
   "author": "",
   "license": "",
   "scripts": {
-    "preinstall": "dotnet restore",
-    "build": "dotnet fable npm-run splitter",
-    "rollup": "rollup -c",
-    "splitter": "node ./node_modules/fable-splitter/dist/cli -c splitter.config.js",
-    "start": "node out/app"
+    "build-test": "dotnet run -c Release -p ../../../../Fable/src/dotnet/Fable.Compiler npm-splitter",
+    "splitter": "node ./node_modules/fable-splitter/dist/cli --commonjs",
+    "test-node": "node out-test/test",
+    "test-dotnet": "dotnet run -c Release -p fcs-fable-test.fsproj",
+    "bench-dotnet": "dotnet run -c Release -p fcs-fable-bench.fsproj ../fcs-fable.fsproj"
   },
   "devDependencies": {
-    "@babel/core": "^7.1.2",
-    "babel-preset-env": "^1.7.0",
-    "fable-splitter": "^2.0.2",
-    "rollup": "^0.66.6",
-    "rollup-plugin-fable": "^2.0.0"
+    "@babel/core": "^7.2.0",
+    "@babel/plugin-transform-modules-commonjs": "^7.2.0",
+    "fable-splitter": "2.0.2"
   }
 }

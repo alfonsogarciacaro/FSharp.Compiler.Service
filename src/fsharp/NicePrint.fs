@@ -171,11 +171,7 @@ module private PrintIL =
         let numParms = 
             // can't find a way to see the number of generic parameters for *this* class (the GenericParams also include type variables for enclosing classes); this will have to do
             let rightMost = className |> SplitNamesForILPath |> List.last
-#if FABLE_COMPILER
-            match System.Int32.TryParse(rightMost) with
-#else
             match System.Int32.TryParse(rightMost, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture) with 
-#endif
             | true, n -> n
             | false, _ -> 0 // looks like it's non-generic
         ilTyparSubst |> List.rev |> List.truncate numParms |> List.rev
@@ -334,22 +330,14 @@ module private PrintIL =
                 | ILFieldInit.UInt32 x -> (x |> int64 |> string) + "u" |> (tagNumericLiteral >> Some)
                 | ILFieldInit.UInt64 x -> ((x |> int64 |> string) + "UL")  |> (tagNumericLiteral >> Some)
                 | ILFieldInit.Single d -> 
-#if FABLE_COMPILER
-                    let s = string d
-#else
                     let s = d.ToString ("g12", System.Globalization.CultureInfo.InvariantCulture)
-#endif
                     let s = 
                         if String.forall (fun c -> System.Char.IsDigit c || c = '-')  s 
                         then s + ".0" 
                         else s
                     (s + "f") |> (tagNumericLiteral >> Some)
                 | ILFieldInit.Double d -> 
-#if FABLE_COMPILER
-                      let s = string d
-#else
                       let s = d.ToString ("g12", System.Globalization.CultureInfo.InvariantCulture)
-#endif
                       let s = 
                           if String.forall (fun c -> System.Char.IsDigit c || c = '-')  s 
                           then (s + ".0")
@@ -566,20 +554,12 @@ module private PrintTypes =
             | Const.IntPtr x      -> (x |> string)+"n" |> tagNumericLiteral
             | Const.UIntPtr x     -> (x |> string)+"un" |> tagNumericLiteral
             | Const.Single d      -> 
-#if FABLE_COMPILER
-                 ((let s = string d
-#else
                  ((let s = d.ToString("g12",System.Globalization.CultureInfo.InvariantCulture)
-#endif
                   if String.forall (fun c -> System.Char.IsDigit(c) || c = '-')  s 
                   then s + ".0" 
                   else s) + "f") |> tagNumericLiteral
             | Const.Double d      -> 
-#if FABLE_COMPILER
-                let s = string d
-#else
                 let s = d.ToString("g12",System.Globalization.CultureInfo.InvariantCulture)
-#endif
                 (if String.forall (fun c -> System.Char.IsDigit(c) || c = '-')  s 
                 then s + ".0" 
                 else s) |> tagNumericLiteral
@@ -709,22 +689,14 @@ module private PrintTypes =
         | ILAttribElem.UInt64 x         -> wordL (tagNumericLiteral ((x |> string)+"UL"))
         | ILAttribElem.Single x         -> 
             let str =
-#if FABLE_COMPILER
-                let s = string x
-#else
                 let s = x.ToString("g12",System.Globalization.CultureInfo.InvariantCulture)
-#endif
                 (if String.forall (fun c -> System.Char.IsDigit(c) || c = '-')  s 
                  then s + ".0" 
                  else s) + "f"
             wordL (tagNumericLiteral str)
         | ILAttribElem.Double x         -> 
             let str =
-#if FABLE_COMPILER
-                let s = string x
-#else
                 let s = x.ToString("g12",System.Globalization.CultureInfo.InvariantCulture)
-#endif
                 if String.forall (fun c -> System.Char.IsDigit(c) || c = '-')  s 
                 then s + ".0" 
                 else s
