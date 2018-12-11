@@ -714,6 +714,7 @@ let AddSignatureRemapInfo _msg (rpi, mhi) eenv =
 // Print eenv
 //--------------------------------------------------------------------------
 
+#if !FABLE_COMPILER
 let OutputStorage (pps: TextWriter) s =
     match s with
     | StaticField _ ->  pps.Write "(top)"
@@ -723,6 +724,7 @@ let OutputStorage (pps: TextWriter) s =
     | Arg _ -> pps.Write "(arg)"
     | Env _ -> pps.Write "(env)"
     | Null -> pps.Write "(null)"
+#endif
 
 //--------------------------------------------------------------------------
 // Augment eenv with values
