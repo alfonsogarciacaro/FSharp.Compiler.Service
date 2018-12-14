@@ -63,7 +63,7 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         let GetOptimizationData ((filename:string), ilScopeRef, (ilModule:ILModuleDef option), (bytes:byte[])) = 
             TastPickle.unpickleObjWithDanglingCcus filename ilScopeRef ilModule Optimizer.u_CcuOptimizationInfo bytes
 
-        let tcConfig = TcConfig (optimize = true, defines = Array.toList defines)
+        let tcConfig = TcConfig (optimize = false, defines = Array.toList defines)
         let tcImports = TcImports ()
         let ilGlobals = IL.EcmaMscorlibILGlobals
 
