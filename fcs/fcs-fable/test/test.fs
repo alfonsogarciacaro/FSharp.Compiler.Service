@@ -16,13 +16,13 @@ let main argv =
     printfn "Parsing begins..."
 
     let defines = [||]
-    let checker = InteractiveChecker.Create(references, readAllBytes metadataPath, defines)
+    let checker = InteractiveChecker.Create(references, readAllBytes metadataPath, defines, optimize=false)
 
     let projectFileName = "project"
     let fileName = "test_script.fsx"
     let source = readAllText fileName
 
-    //let parseResults, typeCheckResults, projectResults = checker.ParseAndCheckProject(projectFileName, [|fileName|], [|source|])
+    // let projectResults = checker.ParseAndCheckProject(projectFileName, [|fileName|], [|source|])
     let parseResults, typeCheckResults, projectResults = checker.ParseAndCheckScript(projectFileName, fileName, source)
     
     printfn "parseResults.ParseHadErrors: %A" parseResults.ParseHadErrors

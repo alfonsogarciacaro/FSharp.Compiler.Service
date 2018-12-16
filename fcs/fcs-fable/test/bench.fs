@@ -102,31 +102,30 @@ let parseFiles projectPath outDir optimized =
     let fileNames = dedupFileNames fileNames
 
     // create checker
-    let createChecker () = InteractiveChecker.Create(references, readAllBytes metadataPath, defines)
+    let createChecker () = InteractiveChecker.Create(references, readAllBytes metadataPath, defines, optimize=false)
     let ms0, checker = measureTime createChecker ()
     printfn "--------------------------------------------"
     printfn "InteractiveChecker created in %d ms" ms0
 
     // parse F# files to AST
-    let parseFSharp () = checker.ParseAndCheckProject_simple(projectFileName, fileNames, sources)
-    let ms1, parseRes = measureTime parseFSharp ()
+    let parseFSharpProject () = checker.ParseAndCheckProject(projectFileName, fileNames, sources)
+    let ms1, projectResults = measureTime parseFSharpProject ()
     printfn "Project: %s, FCS time: %d ms" projectFileName ms1
     printfn "--------------------------------------------"
     let showWarnings = false // supress warnings for clarity
-    parseRes.Errors |> printErrors showWarnings
+    projectResults.Errors |> printErrors showWarnings
 
     // exclude signature files
     let fileNames = fileNames |> Array.filter (fun x -> not (x.EndsWith(".fsi")))
 
     // this is memory intensive, only do it once
     let implFiles = if optimized
-                    then parseRes.GetOptimizedAssemblyContents().ImplementationFiles
-                    else parseRes.AssemblyContents.ImplementationFiles
+                    then projectResults.GetOptimizedAssemblyContents().ImplementationFiles
+                    else projectResults.AssemblyContents.ImplementationFiles
 
     // for each file
     for implFile in implFiles do
-        let count = List.length implFile.Declarations
-        printfn "%s: %d declarations" (implFile.FileName) count
+        printfn "%s" implFile.FileName
 
         // printfn "--------------------------------------------"
         // let fsAst = implFile.Declarations |> AstPrint.printFSharpDecls "" |> String.concat "\n"
