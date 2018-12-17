@@ -53,10 +53,10 @@ module Path =
     let GetFileName (path: string) =
         let normPath = path.Replace("\\", "/").TrimEnd('/')
         let i = normPath.LastIndexOf("/")
-        path.Substring(i + 1)
+        normPath.Substring(i + 1)
 
     let GetDirectoryName (path: string) =
         let normPath = path.Replace("\\", "/")
         let i = normPath.LastIndexOf("/")
         if i < 0 then ""
-        else path.Substring(0, i)
+        else normPath.Substring(0, i)
