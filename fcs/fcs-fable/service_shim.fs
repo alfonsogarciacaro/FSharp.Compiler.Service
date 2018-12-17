@@ -226,10 +226,12 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
 
         // search over all imported CCUs for each cached type
         let ccuHasType (ccu: CcuThunk) (nsname: string list) (tname: string) =
-            match (Some ccu.Contents, nsname) ||> List.fold (fun entityOpt n ->
+            let findEntity (entityOpt: Entity option) n =
                 match entityOpt with
                 | None -> None
-                | Some entity -> entity.ModuleOrNamespaceType.AllEntitiesByCompiledAndLogicalMangledNames.TryFind n) with
+                | Some entity -> entity.ModuleOrNamespaceType.AllEntitiesByCompiledAndLogicalMangledNames.TryFind n
+            let entityOpt = (Some ccu.Contents, nsname) ||> List.fold findEntity
+            match entityOpt with
             | Some ns ->
                     match Map.tryFind tname ns.ModuleOrNamespaceType.TypesByMangledName with
                     | Some _ -> true
@@ -242,7 +244,9 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
             match search with
             | Some x -> Some x.FSharpViewOfMetadata
             | None ->
+#if DEBUG
                 printfn "Cannot find type %s.%s" (String.concat "." nsname) typeName
+#endif
                 None
 
         let tcGlobals = TcGlobals (

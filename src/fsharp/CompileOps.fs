@@ -5408,11 +5408,7 @@ type LoadClosure =
 
 // cut-down version of TcConfig
 type TcConfig (optimize: bool, defines: string list) =
-#if COMPILER_SERVICE_ASSUMES_DOTNETCORE_COMPILATION
-    member x.primaryAssembly = PrimaryAssembly.System_Runtime
-#else
-    member x.primaryAssembly = PrimaryAssembly.Mscorlib
-#endif
+    member x.primaryAssembly = PrimaryAssembly.NetStandard
     member x.implicitIncludeDir = ""
     member x.compilingFslib = false
     member x.isInteractive = false
