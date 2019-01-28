@@ -16,58 +16,53 @@ let main argv =
     printfn "Parsing begins..."
 
     let defines = [||]
-    let checker = InteractiveChecker.Create(references, readAllBytes metadataPath, defines, optimize=false)
+    let optimize = false
+    let checker = InteractiveChecker.Create(references, readAllBytes metadataPath, defines, optimize)
 
     let projectFileName = "project"
     let fileName = "test_script.fsx"
     let source = readAllText fileName
 
-    // let projectResults = checker.ParseAndCheckProject(projectFileName, [|fileName|], [|source|])
-    let parseResults, typeCheckResults, projectResults = checker.ParseAndCheckScript(projectFileName, fileName, source)
-    
-    printfn "parseResults.ParseHadErrors: %A" parseResults.ParseHadErrors
-    printfn "parseResults.Errors: %A" parseResults.Errors
-    //printfn "parseResults.ParseTree: %A" parseResults.ParseTree
-    
-    printfn "typeCheckResults Errors: %A" typeCheckResults.Errors
-    printfn "typeCheckResults Entities: %A" typeCheckResults.PartialAssemblySignature.Entities
-    //printfn "typeCheckResults Attributes: %A" typeCheckResults.PartialAssemblySignature.Attributes
+    //let parseResults, typeCheckResults, projectResults =
+    //    checker.ParseAndCheckScript(projectFileName, fileName, source)
+    let parseResults, tcResultsOpt, projectResults =
+        checker.ParseAndCheckFileInProject(fileName, projectFileName, [|fileName|], [|source|])
 
-    printfn "projectResults Errors: %A" projectResults.Errors
-    //printfn "projectResults Contents: %A" projectResults.AssemblyContents
+    // print errors
+    projectResults.Errors |> Array.iter (fun e -> printfn "%A: %A" (e.Severity) e)
 
-    printfn "Typed AST (unoptimized):"
-    let unoptimizedDecls = 
-        projectResults.AssemblyContents.ImplementationFiles
-        |> Seq.collect (fun file -> AstPrint.printFSharpDecls "" file.Declarations)
-        |> String.concat "\n"
-    unoptimizedDecls |> printfn "%s"
-    //writeAllText (fileName + ".unoptimized.ast.txt") unoptimizedDecls
+    match tcResultsOpt with
+    | Some typeCheckResults ->
 
-    printfn "Typed AST (optimized):"
-    let optimizedDecls = 
-        projectResults.GetOptimizedAssemblyContents().ImplementationFiles
-        |> Seq.collect (fun file -> AstPrint.printFSharpDecls "" file.Declarations)
-        |> String.concat "\n"
-    optimizedDecls |> printfn "%s"
-    //writeAllText (fileName + ".optimized.ast.txt") optimizedDecls
+        printfn "Typed AST (optimize=%A):" optimize
+        // let implFiles = typeCheckResults.ImplementationFile |> Option.toArray
+        let implFiles =
+            let assemblyContents =
+                if not optimize then projectResults.AssemblyContents
+                else projectResults.GetOptimizedAssemblyContents()
+            assemblyContents.ImplementationFiles
+        let decls = implFiles
+                    |> Seq.collect (fun file -> AstPrint.printFSharpDecls "" file.Declarations)
+                    |> String.concat "\n"
+        decls |> printfn "%s"
+        // writeAllText (fileName + ".ast.txt") decls
 
-    let inputLines = source.Split('\n')
+        let inputLines = source.Split('\n')
 
-    async {
-        // Get tool tip at the specified location
-        let! tip = typeCheckResults.GetToolTipText(4, 7, inputLines.[3], ["foo"], FSharpTokenTag.IDENT)
-        (sprintf "%A" tip).Replace("\n","") |> printfn "\n---> ToolTip Text = %A" // should be "FSharpToolTipText [...]"
+        async {
+            // Get tool tip at the specified location
+            let! tip = typeCheckResults.GetToolTipText(4, 7, inputLines.[3], ["foo"], FSharpTokenTag.IDENT)
+            (sprintf "%A" tip).Replace("\n","") |> printfn "\n---> ToolTip Text = %A" // should be "FSharpToolTipText [...]"
 
-        // Get declarations (autocomplete) for msg
-        let partialName = { QualifyingIdents = []; PartialIdent = "msg"; EndColumn = 17; LastDotPos = None }
-        let! decls = typeCheckResults.GetDeclarationListInfo(Some parseResults, 6, inputLines.[5], partialName, (fun _ -> []), fun _ -> false)
-        [ for item in decls.Items -> item.Name ] |> printfn "\n---> msg AutoComplete = %A" // should be string methods
+            // Get declarations (autocomplete) for msg
+            let partialName = { QualifyingIdents = []; PartialIdent = "msg"; EndColumn = 17; LastDotPos = None }
+            let! decls = typeCheckResults.GetDeclarationListInfo(Some parseResults, 6, inputLines.[5], partialName, (fun _ -> []), fun _ -> false)
+            [ for item in decls.Items -> item.Name ] |> printfn "\n---> msg AutoComplete = %A" // should be string methods
 
-        // Get declarations (autocomplete) for canvas
-        let partialName = { QualifyingIdents = []; PartialIdent = "canvas"; EndColumn = 10; LastDotPos = None }
-        let! decls = typeCheckResults.GetDeclarationListInfo(Some parseResults, 8, inputLines.[7], partialName, (fun _ -> []), fun _ -> false)
-        [ for item in decls.Items -> item.Name ] |> printfn "\n---> canvas AutoComplete = %A"
-    } |> Async.StartImmediate
-
+            // Get declarations (autocomplete) for canvas
+            let partialName = { QualifyingIdents = []; PartialIdent = "canvas"; EndColumn = 10; LastDotPos = None }
+            let! decls = typeCheckResults.GetDeclarationListInfo(Some parseResults, 8, inputLines.[7], partialName, (fun _ -> []), fun _ -> false)
+            [ for item in decls.Items -> item.Name ] |> printfn "\n---> canvas AutoComplete = %A"
+        } |> Async.StartImmediate
+    | _ -> ()
     0
