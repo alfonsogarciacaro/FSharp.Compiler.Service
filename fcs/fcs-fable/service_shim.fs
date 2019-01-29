@@ -314,23 +314,6 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
             let dependencyFiles = [||] // interactions have no dependencies
             FSharpParseFileResults (parseErrors, parseTreeOpt, anyErrors, dependencyFiles) )
 
-    // member private x.CheckFile (source: string, projectFileName: string, parseResults: FSharpParseFileResults, tcState: TcState) =
-    //     let fileName = parseResults.FileName
-    //     let loadClosure = None
-    //     let backgroundErrors = [||]
-    //     let checkAlive () = true
-    //     let textSnapshotInfo = None
-    //     let tcResults = Parser.CheckOneFile(
-    //                         parseResults, source, fileName, projectFileName, tcConfig, tcGlobals, tcImports, tcState,
-    //                         loadClosure, backgroundErrors, reactorOps, checkAlive, textSnapshotInfo, userOpName)
-    //     match tcResults with
-    //     | tcErrors, Parser.TypeCheckAborted.No scope ->
-    //         let errors = Array.append parseResults.Errors tcErrors
-    //         let checkResults = FSharpCheckFileResults (fileName, errors, Some scope, parseResults.DependencyFiles, None, reactorOps, true)
-    //         FSharpCheckFileAnswer.Succeeded checkResults
-    //     | _ ->
-    //         FSharpCheckFileAnswer.Aborted
-
     member private x.CheckFile (projectFileName: string, parseResults: FSharpParseFileResults, tcState: TcState) =
         match parseResults.ParseTree with
         | Some input ->
@@ -379,10 +362,13 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         let tcState, declaredImpls = TypeCheckClosedInputSetFinish (implFiles, tcState)
         tcState, topAttrs, declaredImpls, tcEnvAtEndOfLastFile
 
+    /// Clears parse and typecheck caches.
     member x.ClearCache () =
         parseCache.Clear()
         checkCache.Clear()
 
+    /// Parses and checks single file only, left as is for backwards compatibility.
+    /// Despite the name, there is no support for #load etc.
     member x.ParseAndCheckScript (projectFileName: string, fileName: string, source: string) =
         let fileNames = [| fileName |]
         let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, fileNames, false)
@@ -406,6 +392,9 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         | _ ->
             failwith "unexpected aborted"
 
+    /// Parses and checks the whole project, good for compilers (Fable etc.)
+    /// Does not retain name resolutions and symbol uses which are quite memory hungry (so no intellisense etc.).
+    /// Already parsed files will be cached so subsequent compilations will be faster.
     member x.ParseAndCheckProject (projectFileName: string, fileNames: string[], sources: string[]) =
         // parse files
         let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, fileNames, false)
@@ -431,6 +420,10 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
 
         projectResults
 
+    /// Parses and checks file in project, will compile and cache all the files up to this one
+    /// (if not already done before), or fetch them from cache. Returns partial project results,
+    /// up to and including the file requested. Returns parse and typecheck results containing
+    /// name resolutions and symbol uses for the file requested only, so intellisense etc. works.
     member x.ParseAndCheckFileInProject (fileName: string, projectFileName: string, fileNames: string[], sources: string[]) =
         // get files before file
         let fileIndex = fileNames |> Array.findIndex ((=) fileName)
