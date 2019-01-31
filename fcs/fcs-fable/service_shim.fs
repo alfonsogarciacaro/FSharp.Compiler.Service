@@ -79,10 +79,13 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
                     let ccuName = GetOptimizationDataResourceName resource
                     yield resource.GetBytes() ]
 
-        let LoadMod ccuName =
-            let fileName = ccuName + ".dll"
+        let LoadMod (ccuName: string) =
+            let fileName =
+                if ccuName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+                then ccuName
+                else ccuName + ".dll"
             let bytes = readAllBytes fileName
-            let opts : ILReaderOptions =
+            let opts: ILReaderOptions =
                   { ilGlobals = ilGlobals
                     metadataOnly = MetadataOnlyFlag.Yes
                     reduceMemoryUsage = ReduceMemoryFlag.Yes
@@ -95,17 +98,19 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         let memoize_mod = new MemoizationTable<_,_> (LoadMod, keyComparer=HashIdentity.Structural)
 
         let LoadSigData ccuName =
-            let fileName = ccuName + ".dll" // ccuName + ".sigdata"
-            let ilScopeRef = ILScopeRef.Assembly (mkSimpleAssRef ccuName)
             let ilModule = memoize_mod.Apply ccuName
+            let ilShortAssemName = ilModule.ManifestOfAssembly.Name
+            let ilScopeRef = ILScopeRef.Assembly (mkSimpleAssRef ilShortAssemName)
+            let fileName = ilModule.Name //TODO: try with ".sigdata" extension
             match sigDataReaders ilModule with
             | [] -> None
             | bytes::_ -> Some (GetSignatureData (fileName, ilScopeRef, Some ilModule, bytes))
 
         let LoadOptData ccuName =
-            let fileName = ccuName + ".dll" // ccuName + ".optdata"
-            let ilScopeRef = ILScopeRef.Assembly (mkSimpleAssRef ccuName)
             let ilModule = memoize_mod.Apply ccuName
+            let ilShortAssemName = ilModule.ManifestOfAssembly.Name
+            let ilScopeRef = ILScopeRef.Assembly (mkSimpleAssRef ilShortAssemName)
+            let fileName = ilModule.Name //TODO: try with ".optdata" extension
             match optDataReaders ilModule with
             | [] -> None
             | bytes::_ -> Some (GetOptimizationData (fileName, ilScopeRef, Some ilModule, bytes))
@@ -144,8 +149,8 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
                 | ILScopeRef.Assembly x -> memoize_mod.Apply x.Name
             let ilModule = memoize_mod.Apply ccuName
             let ilShortAssemName = ilModule.ManifestOfAssembly.Name
-            let fileName = ilModule.Name
             let ilScopeRef = ILScopeRef.Assembly (mkSimpleAssRef ilShortAssemName)
+            let fileName = ilModule.Name
             let invalidateCcu = new Event<_>()
             let ccu = Import.ImportILAssembly(
                         tcImports.GetImportMap, m, auxModuleLoader, ilScopeRef,
@@ -157,8 +162,8 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
             let sigdata = memoize_sig.Apply ccuName
             let ilModule = memoize_mod.Apply ccuName
             let ilShortAssemName = ilModule.ManifestOfAssembly.Name
-            let fileName = ilModule.Name
             let ilScopeRef = ILScopeRef.Assembly (mkSimpleAssRef ilShortAssemName)
+            let fileName = ilModule.Name
             let GetRawTypeForwarders ilModule =
                 match ilModule.Manifest with 
                 | Some manifest -> manifest.ExportedTypes
@@ -166,9 +171,9 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
 #if !NO_EXTENSIONTYPING
             let invalidateCcu = new Event<_>()
 #endif
-            let minfo : PickledCcuInfo = sigdata.Value.RawData //TODO: handle missing sigdata
+            let minfo: PickledCcuInfo = sigdata.Value.RawData //TODO: handle missing sigdata
             let codeDir = minfo.compileTimeWorkingDir
-            let ccuData : CcuData = 
+            let ccuData: CcuData = 
                   { ILScopeRef = ilScopeRef
                     Stamp = newStamp()
                     FileName = Some fileName 
