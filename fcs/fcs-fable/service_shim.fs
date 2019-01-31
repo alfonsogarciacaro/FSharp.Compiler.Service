@@ -143,8 +143,9 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
                 | ILScopeRef.Module x -> memoize_mod.Apply x.Name
                 | ILScopeRef.Assembly x -> memoize_mod.Apply x.Name
             let ilModule = memoize_mod.Apply ccuName
+            let ilShortAssemName = ilModule.ManifestOfAssembly.Name
             let fileName = ilModule.Name
-            let ilScopeRef = ILScopeRef.Assembly (mkSimpleAssRef ccuName)
+            let ilScopeRef = ILScopeRef.Assembly (mkSimpleAssRef ilShortAssemName)
             let invalidateCcu = new Event<_>()
             let ccu = Import.ImportILAssembly(
                         tcImports.GetImportMap, m, auxModuleLoader, ilScopeRef,
@@ -155,8 +156,9 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         let GetCcuFS m ccuName =
             let sigdata = memoize_sig.Apply ccuName
             let ilModule = memoize_mod.Apply ccuName
+            let ilShortAssemName = ilModule.ManifestOfAssembly.Name
             let fileName = ilModule.Name
-            let ilScopeRef = ILScopeRef.Assembly (mkSimpleAssRef ccuName)
+            let ilScopeRef = ILScopeRef.Assembly (mkSimpleAssRef ilShortAssemName)
             let GetRawTypeForwarders ilModule =
                 match ilModule.Manifest with 
                 | Some manifest -> manifest.ExportedTypes
@@ -192,7 +194,7 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
                     let findCcuInfo name = tcImports.FindCcu (m, name)
                     Some (data.OptionalFixup findCcuInfo) )
 
-            let ccu = CcuThunk.Create(ccuName, ccuData)
+            let ccu = CcuThunk.Create(ilShortAssemName, ccuData)
             let ccuInfo = mkCcuInfo ilGlobals ilScopeRef ilModule ccu
             let ccuOptInfo = { ccuInfo with FSharpOptimizationData = optdata }
             ccuOptInfo, sigdata

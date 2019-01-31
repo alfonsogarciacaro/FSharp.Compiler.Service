@@ -4,7 +4,7 @@ open System.Text.RegularExpressions
 open Microsoft.FSharp.Compiler.SourceCodeServices
 open Platform
 
-let references = Metadata.references false
+let references = Metadata.references_core
 let metadataPath = "/temp/repl/metadata2/" // .NET BCL binaries
 
 let parseProjectFile projectPath =
