@@ -117,13 +117,11 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         // restore all cached typecheck entries above file
         cachedAbove |> Array.iter (fun (key, value) -> checkCache.TryAdd(key, value) |> ignore)
 
-    member private x.ParseFile (fileName: string, source: string, parsingOptions: FSharpParsingOptions) =
-        let parseCacheKey = fileName, hash source
+    member private x.ParseFile (fileName: string, sourceHash: int, source: Lazy<string>, parsingOptions: FSharpParsingOptions) =
+        let parseCacheKey = fileName, sourceHash
         parseCache.GetOrAdd(parseCacheKey, fun _ ->
             x.ClearStaleCache(fileName, parsingOptions)
-            let parseErrors, parseTreeOpt, anyErrors = Parser.parseFile (source, fileName, parsingOptions, userOpName)
-            let dependencyFiles = [||] // interactions have no dependencies
-            FSharpParseFileResults (parseErrors, parseTreeOpt, anyErrors, dependencyFiles) )
+            let parseErrors, parseTreeOpt, anyErrors = Parser.parseFile (source.Value, fileName, parsingOptions, userOpName)
 
     member private x.CheckFile (projectFileName: string, parseResults: FSharpParseFileResults, tcState: TcState, moduleNamesDict: ModuleNamesDict) =
         match parseResults.ParseTree with
@@ -198,11 +196,12 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
     /// Parses and checks the whole project, good for compilers (Fable etc.)
     /// Does not retain name resolutions and symbol uses which are quite memory hungry (so no intellisense etc.).
     /// Already parsed files will be cached so subsequent compilations will be faster.
-    member x.ParseAndCheckProject (projectFileName: string, fileNames: string[], sources: string[]) =
+    member x.ParseAndCheckProject (projectFileName: string, fileNames: string[], sourceReader: string->int*Lazy<string>) =
         // parse files
         let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, fileNames, false)
-        let parseFile (fileName, source) = x.ParseFile (fileName, source, parsingOptions)
-        let parseResults = Array.zip fileNames sources |> Array.map parseFile
+        let parseResults = fileNames |> Array.map (fun fileName ->
+            let sourceHash, source = sourceReader fileName
+            x.ParseFile(fileName, sourceHash, source, parsingOptions))
         let parseHadErrors = parseResults |> Array.exists (fun p -> p.ParseHadErrors)
         let parsedInputs = parseResults |> Array.choose (fun p -> p.ParseTree) |> Array.toList
 
@@ -235,7 +234,7 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
 
         // parse files before file
         let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, fileNames, false)
-        let parseFile (fileName, source) = x.ParseFile (fileName, source, parsingOptions)
+        let parseFile (fileName, source) = x.ParseFile (fileName, hash source, lazy source, parsingOptions)
         let parseResults = Array.zip fileNamesBeforeFile sourcesBeforeFile |> Array.map parseFile
         let parseHadErrors = parseResults |> Array.exists (fun p -> p.ParseHadErrors)
         let parsedInputs = parseResults |> Array.choose (fun p -> p.ParseTree) |> Array.toList
