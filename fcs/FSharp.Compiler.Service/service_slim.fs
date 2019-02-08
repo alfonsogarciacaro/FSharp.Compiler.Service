@@ -122,6 +122,8 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         parseCache.GetOrAdd(parseCacheKey, fun _ ->
             x.ClearStaleCache(fileName, parsingOptions)
             let parseErrors, parseTreeOpt, anyErrors = Parser.parseFile (source.Value, fileName, parsingOptions, userOpName)
+            let dependencyFiles = [||] // interactions have no dependencies
+            FSharpParseFileResults (parseErrors, parseTreeOpt, anyErrors, dependencyFiles) )
 
     member private x.CheckFile (projectFileName: string, parseResults: FSharpParseFileResults, tcState: TcState, moduleNamesDict: ModuleNamesDict) =
         match parseResults.ParseTree with
