@@ -53,6 +53,7 @@ open Microsoft.FSharp.Compiler.TypeChecker
 //-------------------------------------------------------------------------
 
 type internal TcResult = TcEnv * TopAttribs * TypedImplFile option * ModuleOrNamespaceType
+type internal TcErrors = FSharpErrorInfo[]
 
 type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState, ctok, reactorOps, parseCache, checkCache) =
     let userOpName = "Unknown"
@@ -88,7 +89,7 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         // parse cache, keyed on file name and source hash
         let parseCache = ConcurrentDictionary<string * int, FSharpParseFileResults>(HashIdentity.Structural)
         // type check cache, keyed on file name
-        let checkCache = ConcurrentDictionary<string, TcResult * (TcState * ModuleNamesDict)>(HashIdentity.Structural)
+        let checkCache = ConcurrentDictionary<string, (TcResult * TcErrors) * (TcState * ModuleNamesDict)>(HashIdentity.Structural)
 
         InteractiveChecker (tcConfig, tcGlobals, tcImports, tcInitialState, ctok, reactorOps, parseCache, checkCache)
 
@@ -125,32 +126,40 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
             let dependencyFiles = [||] // interactions have no dependencies
             FSharpParseFileResults (parseErrors, parseTreeOpt, anyErrors, dependencyFiles) )
 
+    member private x.TypeCheckOneInput (parseResults: FSharpParseFileResults, tcSink: TcResultsSink, tcState: TcState, moduleNamesDict: ModuleNamesDict) =
+        let input = parseResults.ParseTree.Value
+        let capturingErrorLogger = CompilationErrorLogger("TypeCheckFile", tcConfig.errorSeverityOptions)
+        let errorLogger = GetErrorLoggerFilteringByScopedPragmas(false, GetScopedPragmasForInput(input), capturingErrorLogger)
+        use _errorScope = new CompilationGlobalsScope (errorLogger, BuildPhase.TypeCheck)
+
+        let checkForErrors () = parseResults.ParseHadErrors || errorLogger.ErrorCount > 0
+        let prefixPathOpt = None
+
+        let input, moduleNamesDict = input |> DeduplicateParsedInputModuleName moduleNamesDict
+        let tcResult, tcState =
+            TypeCheckOneInputEventually (checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt, tcSink, tcState, input)
+            |> Eventually.force ctok
+
+        let fileName = parseResults.FileName
+        let tcErrors = ErrorHelpers.CreateErrorInfos (tcConfig.errorSeverityOptions, false, fileName, (capturingErrorLogger.GetErrors()))
+        (tcResult, tcErrors), (tcState, moduleNamesDict)
+
     member private x.CheckFile (projectFileName: string, parseResults: FSharpParseFileResults, tcState: TcState, moduleNamesDict: ModuleNamesDict) =
         match parseResults.ParseTree with
         | Some input ->
-            let capturingErrorLogger = CompilationErrorLogger("TypeCheckFile", tcConfig.errorSeverityOptions)
-            let errorLogger = GetErrorLoggerFilteringByScopedPragmas(false, GetScopedPragmasForInput(input), capturingErrorLogger)
-            use _errorScope = new CompilationGlobalsScope (errorLogger, BuildPhase.TypeCheck)
-
             let sink = TcResultsSinkImpl(tcGlobals)
             let tcSink = TcResultsSink.WithSink sink
-            let checkForErrors () = parseResults.ParseHadErrors || errorLogger.ErrorCount > 0
-            let prefixPathOpt = None
-
-            let input, moduleNamesDict = input |> DeduplicateParsedInputModuleName moduleNamesDict
-            let (tcEnvAtEnd, topAttrs, implFile, ccuSigForFile), tcState =
-                TypeCheckOneInputEventually (checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt, tcSink, tcState, input)
-                |> Eventually.force ctok
-
+            let (tcResult, tcErrors), (tcState, moduleNamesDict) =
+                x.TypeCheckOneInput (parseResults, tcSink, tcState, moduleNamesDict)
             let fileName = parseResults.FileName
-            checkCache.[fileName] <- ((tcEnvAtEnd, topAttrs, implFile, ccuSigForFile), (tcState, moduleNamesDict))
+            checkCache.[fileName] <- ((tcResult, tcErrors), (tcState, moduleNamesDict))
 
             let loadClosure = None
             let checkAlive () = true
             let textSnapshotInfo = None
             let keepAssemblyContents = true
 
-            let tcErrors = ErrorHelpers.CreateErrorInfos (tcConfig.errorSeverityOptions, false, fileName, (capturingErrorLogger.GetErrors()))
+            let tcEnvAtEnd, _topAttrs, implFile, ccuSigForFile = tcResult
             let errors = Array.append parseResults.Errors tcErrors
 
             let scope = TypeCheckInfo (tcConfig, tcGlobals, ccuSigForFile, tcState.Ccu, tcImports, tcEnvAtEnd.AccessRights,
@@ -161,27 +170,19 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         | None ->
             None
 
-    member private x.TypeCheckClosedInputSet (ctok, checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt, tcState, inputs) =
-        let fileNameOf = function
-            | ParsedInput.SigFile (ParsedSigFileInput(fileName,_,_,_,_)) -> fileName
-            | ParsedInput.ImplFile (ParsedImplFileInput(fileName,_,_,_,_,_,_)) -> fileName
-        let cachedTypeCheck (tcState, moduleNamesDict) (input: ParsedInput) =
-            let checkCacheKey = fileNameOf input
+    member private x.TypeCheckClosedInputSet (parseResults: FSharpParseFileResults[], tcConfig, tcImports, tcGlobals, tcState) =
+        let cachedTypeCheck (tcState, moduleNamesDict) (parseRes: FSharpParseFileResults) =
+            let checkCacheKey = parseRes.FileName
             let typeCheckOneInput _fileName =
-                let input, moduleNamesDict = input |> DeduplicateParsedInputModuleName moduleNamesDict
-                let tcResults, tcState =
-                    use unwindEL = PushErrorLoggerPhaseUntilUnwind(fun oldLogger -> GetErrorLoggerFilteringByScopedPragmas(false, GetScopedPragmasForInput(input), oldLogger) )
-                    use unwindBP = PushThreadBuildPhaseUntilUnwind BuildPhase.TypeCheck
-                    TypeCheckOneInputEventually (checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt, TcResultsSink.NoSink, tcState, input)
-                    |> Eventually.force ctok
-                tcResults, (tcState, moduleNamesDict)
+                x.TypeCheckOneInput (parseRes, TcResultsSink.NoSink, tcState, moduleNamesDict)
             checkCache.GetOrAdd(checkCacheKey, typeCheckOneInput)
         let results, (tcState, moduleNamesDict) =
-            ((tcState, Map.empty), inputs) ||> List.mapFold cachedTypeCheck
+            ((tcState, Map.empty), parseResults) ||> Array.mapFold cachedTypeCheck
+        let tcResults, tcErrors = Array.unzip results
         let (tcEnvAtEndOfLastFile, topAttrs, implFiles, _ccuSigsForFiles), tcState =
-            TypeCheckMultipleInputsFinish(results, tcState)
+            TypeCheckMultipleInputsFinish(tcResults |> Array.toList, tcState)
         let tcState, declaredImpls = TypeCheckClosedInputSetFinish (implFiles, tcState)
-        tcState, topAttrs, declaredImpls, tcEnvAtEndOfLastFile, moduleNamesDict
+        tcState, topAttrs, declaredImpls, tcEnvAtEndOfLastFile, moduleNamesDict, tcErrors
 
     /// Errors grouped by file, sorted by line, column
     member private x.ErrorsByFile (fileNames: string[], errorList: FSharpErrorInfo[] list) =
@@ -203,20 +204,14 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, fileNames, false)
         let parseFile (fileName, source) = x.ParseFile (fileName, source, parsingOptions)
         let parseResults = Array.zip fileNames sources |> Array.map parseFile
-        let parseHadErrors = parseResults |> Array.exists (fun p -> p.ParseHadErrors)
-        let parsedInputs = parseResults |> Array.choose (fun p -> p.ParseTree) |> Array.toList
 
         // type check files
-        use errorScope = new ErrorScope()
-        let hasTypedErrors () = errorScope.Diagnostics |> List.exists (fun e -> e.Severity = FSharpErrorSeverity.Error)
-        let checkForErrors () = parseHadErrors || hasTypedErrors ()
-        let prefixPathOpt = None
-        let tcState, topAttrs, tcImplFiles, _tcEnvAtEnd, _moduleNamesDict =
-            x.TypeCheckClosedInputSet (ctok, checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt, tcInitialState, parsedInputs)
+        let tcState, topAttrs, tcImplFiles, _tcEnvAtEnd, _moduleNamesDict, tcErrors =
+            x.TypeCheckClosedInputSet (parseResults, tcConfig, tcImports, tcGlobals, tcInitialState)
 
         // make project results
         let parseErrors = parseResults |> Array.collect (fun p -> p.Errors)
-        let typedErrors = errorScope.Diagnostics |> List.toArray
+        let typedErrors = tcErrors |> Array.concat
         let errors = x.ErrorsByFile (fileNames, [ parseErrors; typedErrors ])
         let symbolUses = [] //TODO:
         let projectResults = x.MakeProjectResults (projectFileName, parseResults, tcState, errors, symbolUses, Some topAttrs, Some tcImplFiles)
@@ -237,26 +232,20 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         let parsingOptions = FSharpParsingOptions.FromTcConfig(tcConfig, fileNames, false)
         let parseFile (fileName, source) = x.ParseFile (fileName, source, parsingOptions)
         let parseResults = Array.zip fileNamesBeforeFile sourcesBeforeFile |> Array.map parseFile
-        let parseHadErrors = parseResults |> Array.exists (fun p -> p.ParseHadErrors)
-        let parsedInputs = parseResults |> Array.choose (fun p -> p.ParseTree) |> Array.toList
 
         // type check files before file
-        use errorScope = new ErrorScope()
-        let hasTypedErrors () = errorScope.Diagnostics |> List.exists (fun e -> e.Severity = FSharpErrorSeverity.Error)
-        let checkForErrors () = parseHadErrors || hasTypedErrors ()
-        let prefixPathOpt = None
-        let tcState, topAttrs, tcImplFiles, _tcEnvAtEnd, moduleNamesDict =
-            x.TypeCheckClosedInputSet (ctok, checkForErrors, tcConfig, tcImports, tcGlobals, prefixPathOpt, tcInitialState, parsedInputs)
+        let tcState, topAttrs, tcImplFiles, _tcEnvAtEnd, moduleNamesDict, tcErrors =
+            x.TypeCheckClosedInputSet (parseResults, tcConfig, tcImports, tcGlobals, tcInitialState)
 
         // parse and type check file
         let parseFileResults = parseFile (fileName, sources.[fileIndex])
         let checkFileResults = x.CheckFile (projectFileName, parseFileResults, tcState, moduleNamesDict)
-        let (_tcEnvAtEndFile, topAttrsFile, implFile, _ccuSigForFile), (tcState, _moduleNamesDict) =
-            checkCache.[fileName]
+        let (tcResult, _tcErrors), (tcState, _moduleNamesDict) = checkCache.[fileName]
+        let _tcEnvAtEndFile, topAttrsFile, implFile, _ccuSigForFile = tcResult
 
         // collect errors
         let parseErrorsBefore = parseResults |> Array.collect (fun p -> p.Errors)
-        let typedErrorsBefore = errorScope.Diagnostics |> List.toArray
+        let typedErrorsBefore = tcErrors |> Array.concat
         let newErrors = match checkFileResults with | Some res -> res.Errors | None -> [||]
         let errors = x.ErrorsByFile (fileNames, [ parseErrorsBefore; typedErrorsBefore; newErrors ])
 

@@ -16,7 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="FSharp.Core" Version="4.5.*" PrivateAssets="All" />
-    <PackageReference Include="Dotnet.ProjInfo.Matthid" Version="*" />
+    <PackageReference Include="Dotnet.ProjInfo" Version="*" />
     <PackageReference Include="Fable.Core" Version="2.*" />
     <PackageReference Include="Fable.Import.Browser" Version="*" />
   </ItemGroup>

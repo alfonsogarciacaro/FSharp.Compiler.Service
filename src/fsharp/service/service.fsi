@@ -387,9 +387,7 @@ type public FSharpProjectOptions =
     }
          
 module internal Parser =
-    type TypeCheckAborted = Yes | No of TypeCheckInfo
     val internal parseFile: source: string * filename: string * options: FSharpParsingOptions * userOpName: string -> FSharpErrorInfo [] * ParsedInput option * bool
-    val internal CheckOneFile : parseResults:FSharpParseFileResults * source:string * mainInputFileName:string * projectFileName:string * tcConfig:TcConfig * tcGlobals:TcGlobals * tcImports:TcImports * tcState:TcState * moduleNamesDict: ModuleNamesDict * loadClosure:LoadClosure option * backgroundDiagnostics:(PhasedDiagnostic * FSharpErrorSeverity)[] * reactorOps:IReactorOperations * checkAlive:(unit -> bool) * textSnapshotInfo:obj option * userOpName: string -> Async<FSharpErrorInfo [] * TypeCheckAborted>
 
 /// The result of calling TypeCheckResult including the possibility of abort and background compiler not caught up.
 [<RequireQualifiedAccess>]

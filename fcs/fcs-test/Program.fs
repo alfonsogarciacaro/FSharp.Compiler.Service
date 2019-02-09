@@ -3,7 +3,7 @@ open System.Collections.Generic
 open Microsoft.FSharp.Compiler
 open Microsoft.FSharp.Compiler.SourceCodeServices
 
-let readReferences (folder: string) (projectFile: string) =
+let getProjectOptions (folder: string) (projectFile: string) =
     let runProcess (workingDir: string) (exePath: string) (args: string) =
         let psi = System.Diagnostics.ProcessStartInfo()
         psi.FileName <- exePath
@@ -26,16 +26,15 @@ let readReferences (folder: string) (projectFile: string) =
     let msbuildExec = Dotnet.ProjInfo.Inspect.dotnetMsbuild runCmd
     let result = Dotnet.ProjInfo.Inspect.getProjectInfo ignore msbuildExec Dotnet.ProjInfo.Inspect.getFscArgs [] projectFile
     match result with
-    | Ok(Dotnet.ProjInfo.Inspect.GetResult.FscArgs x) ->
-        x
-        |> List.filter (fun s -> s.StartsWith("-r:"))
-        |> List.map (fun s -> s.Replace("-r:", ""))
+    | Ok (Dotnet.ProjInfo.Inspect.GetResult.FscArgs x) -> x
     | _ -> []
 
 let mkStandardProjectReferences () = 
     let projFile = "fcs-test.fsproj"
     let projDir = __SOURCE_DIRECTORY__
-    readReferences projDir projFile
+    getProjectOptions projDir projFile
+    |> List.filter (fun s -> s.StartsWith("-r:"))
+    |> List.map (fun s -> s.Replace("-r:", ""))
 
 let mkProjectCommandLineArgsForScript (dllName, fileNames) = 
     [|  yield "--simpleresolution" 
@@ -82,22 +81,25 @@ let printAst title (projectResults: FSharpCheckProjectResults) =
 let main argv = 
     let projName = "Project.fsproj"
     let fileName = "test_script.fsx"
+    let fileNames = [| fileName |]
     let source = File.ReadAllText (fileName, System.Text.Encoding.UTF8)
+    let sources =  [| source |]
 
     let dllName = Path.ChangeExtension(fileName, ".dll")
-    let args = mkProjectCommandLineArgsForScript (dllName, [fileName])
+    let args = mkProjectCommandLineArgsForScript (dllName, fileNames)
+    // for arg in args do printfn "%s" arg
 
     let projectOptions = getProjectOptionsFromCommandLineArgs (projName, args)
     let checker = InteractiveChecker.Create(projectOptions)
 
     // parse and typecheck a project
-    let projectResults = checker.ParseAndCheckProject(projName, [|fileName|], [|source|])
+    let projectResults = checker.ParseAndCheckProject(projName, fileNames, sources)
     projectResults.Errors |> Array.iter (fun e -> printfn "%A: %A" (e.Severity) e)
     printAst "ParseAndCheckProject" projectResults
 
     // or just parse and typecheck a file in project
     let parseResults, tcResultsOpt, projectResults =
-        checker.ParseAndCheckFileInProject(fileName, projName, [|fileName|], [|source|])
+        checker.ParseAndCheckFileInProject(fileName, projName, fileNames, sources)
     projectResults.Errors |> Array.iter (fun e -> printfn "%A: %A" (e.Severity) e)
 
     match tcResultsOpt with
