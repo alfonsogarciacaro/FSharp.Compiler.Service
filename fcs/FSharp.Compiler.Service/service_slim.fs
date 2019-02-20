@@ -5,8 +5,6 @@
 
 namespace Microsoft.FSharp.Compiler.SourceCodeServices
 
-#nowarn "1182"
-
 open Internal.Utilities
 open Internal.Utilities.Collections
 open Microsoft.FSharp.Collections
@@ -58,25 +56,23 @@ type internal TcErrors = FSharpErrorInfo[]
 type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState, ctok, reactorOps, parseCache, checkCache) =
     let userOpName = "Unknown"
 
-    static member Create(options: FSharpProjectOptions) =
-
-        let getTcConfig () =
+    static member Create(projectOptions: FSharpProjectOptions) =
+        let tcConfig =
             let tcConfigB = TcConfigBuilder.Initial
-            let sourceFiles = options.SourceFiles |> Array.toList
-            let argv = options.OtherOptions |> Array.toList
+            let sourceFiles = projectOptions.SourceFiles |> Array.toList
+            let argv = projectOptions.OtherOptions |> Array.toList
             let _sourceFiles = ApplyCommandLineArgs(tcConfigB, sourceFiles, argv)
             TcConfig.Create(tcConfigB, validate=false)
 
-        let ctok = CompilationThreadToken()
-        let tcConfig = getTcConfig ()
         let tcConfigP = TcConfigProvider.Constant(tcConfig)
 
+        let ctok = CompilationThreadToken()
         let tcGlobals, tcImports =
             TcImports.BuildTcImports (ctok, tcConfigP)
             |> Cancellable.runWithoutCancellation
 
         let niceNameGen = NiceNameGenerator()
-        let assemblyName = "Project"
+        let assemblyName = projectOptions.ProjectFileName |> System.IO.Path.GetFileNameWithoutExtension
         let tcInitialEnv = GetInitialTcEnv (assemblyName, rangeStartup, tcConfig, tcImports, tcGlobals)
         let tcInitialState = GetInitialTcState (rangeStartup, assemblyName, tcConfig, tcGlobals, tcImports, niceNameGen, tcInitialEnv)
 
@@ -146,7 +142,7 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
 
     member private x.CheckFile (projectFileName: string, parseResults: FSharpParseFileResults, tcState: TcState, moduleNamesDict: ModuleNamesDict) =
         match parseResults.ParseTree with
-        | Some input ->
+        | Some _input ->
             let sink = TcResultsSinkImpl(tcGlobals)
             let tcSink = TcResultsSink.WithSink sink
             let (tcResult, tcErrors), (tcState, moduleNamesDict) =
@@ -170,7 +166,7 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
         | None ->
             None
 
-    member private x.TypeCheckClosedInputSet (parseResults: FSharpParseFileResults[], tcConfig, tcImports, tcGlobals, tcState) =
+    member private x.TypeCheckClosedInputSet (parseResults: FSharpParseFileResults[], tcState) =
         let cachedTypeCheck (tcState, moduleNamesDict) (parseRes: FSharpParseFileResults) =
             let checkCacheKey = parseRes.FileName
             let typeCheckOneInput _fileName =
@@ -207,7 +203,7 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
 
         // type check files
         let tcState, topAttrs, tcImplFiles, _tcEnvAtEnd, _moduleNamesDict, tcErrors =
-            x.TypeCheckClosedInputSet (parseResults, tcConfig, tcImports, tcGlobals, tcInitialState)
+            x.TypeCheckClosedInputSet (parseResults, tcInitialState)
 
         // make project results
         let parseErrors = parseResults |> Array.collect (fun p -> p.Errors)
@@ -235,7 +231,7 @@ type InteractiveChecker internal (tcConfig, tcGlobals, tcImports, tcInitialState
 
         // type check files before file
         let tcState, topAttrs, tcImplFiles, _tcEnvAtEnd, moduleNamesDict, tcErrors =
-            x.TypeCheckClosedInputSet (parseResults, tcConfig, tcImports, tcGlobals, tcInitialState)
+            x.TypeCheckClosedInputSet (parseResults, tcInitialState)
 
         // parse and type check file
         let parseFileResults = parseFile (fileName, sources.[fileIndex])
